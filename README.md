@@ -8,6 +8,7 @@ not in Kryon.
 ```sh
 make -j1
 make standalone-window-test
+make independent-window-test
 make pane-ziran-test
 make standalone-test install-test
 make install
@@ -24,7 +25,12 @@ is resolved from the Git-backed package lock. Builds default to one job;
 It checks CLI routes, a rendered window, real child-process input, held and
 repeated Control keys, menu input ownership, and closing its own window.
 `standalone-test` repeats these checks for C and C++ from source and saved IR.
-The window tests need Xvfb, xauth, xdotool and xset; they scrub inherited
+`independent-window-test` opens separate agent-terminal views on a private display,
+checks that repeated launches keep the first window and input working, and verifies
+that closing a view preserves the other window and both tmux sessions. Its display,
+configuration, state, runtime locks and tmux socket are disposable.
+
+The window tests need Xvfb, xauth, xdotool, xset and tmux; they scrub inherited
 session and display variables before creating their private display.
 
 The focused Ziran suites exercise the actual engine, configuration, sessions,

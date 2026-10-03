@@ -35,6 +35,12 @@ standalone-window-test: $(APP)
 		LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
 		env T9_PRIVATE_XVFB=1 python3 tests/standalone_window_test.py "$(APP)"
 
+.PHONY: independent-window-test
+independent-window-test: $(APP)
+	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
+		LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
+		env T9_PRIVATE_XVFB=1 python3 tests/independent_windows_test.py "$(APP)"
+
 standalone-test: $(APP)
 	ZIRAN="$(ZIRAN)" RAYLIB_A="$(if $(RAYLIB_A),$(RAYLIB_A),$(abspath $(BUILD_DIR))/raylib/raylib/libraylib.a)" sh tests/standalone_test.sh
 
@@ -211,7 +217,7 @@ clipboard-plan9-c:
 package-test:
 	ZIRAN="$(ZIRAN)" sh tests/package_test.sh
 
-test: package-test pane-ziran-test standalone-test install-test parser-replay-test
+test: package-test pane-ziran-test standalone-test independent-window-test install-test parser-replay-test
 
 install: $(APP)
 	mkdir -p "$(DESTDIR)$(BINDIR)" "$(DESTDIR)$(APPDIR)"
