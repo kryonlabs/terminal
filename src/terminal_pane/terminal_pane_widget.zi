@@ -11,7 +11,11 @@ Keyboard :: #import "terminal_keyboard";
 Metrics :: #import "terminal_pane_metrics";
 using Colors :: #import "terminal_pane_profile_colors";
 Render :: #import "terminal_pane_render";
+Text :: #import "terminal_pane_text";
 Numbers :: #import "std/number_text";
+
+TerminalPaneDrawTextFn :: #type (session: Sessions.Session, node: s32,
+    value: string, bounds: Rectangle, font: s32, color: Color, clip: Rectangle) -> ();
 
 TerminalPaneMetrics :: struct {
     cols: s32
@@ -34,6 +38,9 @@ TerminalPane :: struct {
     terminal: *Engine.Terminal
     font_size: s32
     padding: s32
+    // Hosts may supply fixed-pitch rasterization with its matching advance.
+    cell_width: s32
+    draw_text: TerminalPaneDrawTextFn
     scale: float32
     focused: bool
     handle_input: bool
@@ -57,11 +64,12 @@ TerminalPaneResult :: struct {
 }
 
 MeasureTerminalPaneContent :: (content: Rectangle, font_size: s32,
-    scale: float32 = 1.0) -> TerminalPaneMetrics {
+    scale: float32 = 1.0, cell_width: s32 = 0) -> TerminalPaneMetrics {
     policy := Metrics.TerminalPaneMetricsPolicyFor(scale)
     font := Metrics.TerminalPaneFontSizeFor(font_size, policy)
     measured: TerminalPaneMetrics
     measured.cell_width = Fonts.GlyphWidth("M", font, "")
+    if cell_width > 0 { measured.cell_width = cell_width }
     if measured.cell_width < 6 { measured.cell_width = font * 6 / 10 }
     if measured.cell_width < 1 { measured.cell_width = 1 }
     measured.line_height = Metrics.TerminalPaneLineHeightFor(
@@ -85,9 +93,9 @@ TerminalPaneContentBounds :: (bounds: Rectangle, top_inset: s32,
 }
 
 MeasureTerminalPane :: (bounds: Rectangle, font_size: s32, padding: s32,
-    scale: float32 = 1.0) -> TerminalPaneMetrics {
+    scale: float32 = 1.0, cell_width: s32 = 0) -> TerminalPaneMetrics {
     return MeasureTerminalPaneContent(TerminalPaneContentBounds(bounds, 0, padding, scale),
-        font_size, scale)
+        font_size, scale, cell_width)
 }
 
 FormatTerminalPaneScrollIndicatorLabel :: (out: *u8, out_size: s32,
@@ -201,7 +209,8 @@ Mix :: (from: Color, to: Color, amount: float32) -> Color {
 }
 DrawCell :: (session: Sessions.Session, node: s32, terminal: *Engine.Terminal,
     cell: *Engine.Cell, colors: TerminalPaneColors, font: s32,
-    measured: TerminalPaneMetrics, col: s32, row: s32, blink_on: bool) {
+    measured: TerminalPaneMetrics, col: s32, row: s32, blink_on: bool,
+    draw_text: TerminalPaneDrawTextFn, wide: bool) {
     foreground := CellColor(terminal, cell.fg, colors.text)
     background := CellColor(terminal, cell.bg, colors.background)
     if (cell.style & Engine.STYLE_INVERSE) != 0 {
@@ -211,13 +220,22 @@ DrawCell :: (session: Sessions.Session, node: s32, terminal: *Engine.Terminal,
     bounds := Rectangle.{measured.content.x + cast(float32)(col * measured.cell_width),
         measured.content.y + cast(float32)(row * measured.line_height),
         cast(float32)measured.cell_width, cast(float32)measured.line_height}
+    if wide { bounds.width *= 2.0 }
     if cell.bg != Engine.COLOR_DEFAULT || (cell.style & Engine.STYLE_INVERSE) != 0 {
         fill := Geometry.RectangleIntersection(bounds, measured.content)
         if fill.width > 0.0 && fill.height > 0.0 { Paint.PaintRoundedFill(session, node, fill, 0.0, 0, background) }
     }
     if (cell.style & Engine.STYLE_CONCEAL) != 0 || ((cell.style & Engine.STYLE_BLINK) != 0 && !blink_on) { return }
-    Render.DrawTerminalPaneGlyphCell(session, node, cell.codepoint, cell.combining,
-        cast(s32)bounds.x, cast(s32)bounds.y, font, foreground, measured.content)
+    if draw_text != null && cell.codepoint != cast(u32)0 && cell.codepoint != cast(u32)32 {
+        bytes: [12]u8; length: s32
+        if Text.AppendTerminalPaneUTF8Codepoint(*bytes[0], 12, *length, cell.codepoint) {
+            if cell.combining != cast(u32)0 { Text.AppendTerminalPaneUTF8Codepoint(*bytes[0], 12, *length, cell.combining) }
+            draw_text(session, node, TextView(bytes[0:length]), bounds, font, foreground, measured.content)
+        }
+    } else {
+        Render.DrawTerminalPaneGlyphCell(session, node, cell.codepoint, cell.combining,
+            cast(s32)bounds.x, cast(s32)bounds.y, font, foreground, measured.content)
+    }
     if (cell.style & Engine.STYLE_UNDERLINE) != 0 {
         line := Geometry.RectangleIntersection(Rectangle.{bounds.x, bounds.y + bounds.height - 2.0, bounds.width, 1.0}, measured.content)
         if line.width > 0.0 && line.height > 0.0 { Paint.PaintRoundedFill(session, node, line, 0.0, 0, CellColor(terminal, cell.underline, foreground)) }
@@ -231,7 +249,7 @@ DrawTerminalPane :: (session: Sessions.Session, pane: TerminalPane) -> TerminalP
     result: TerminalPaneResult
     result.node = -1
     if !Sessions.SessionValid(session) || !Tree.TreeIsBuilding(session) { return result }
-    measured := MeasureTerminalPane(pane.bounds, pane.font_size, pane.padding, pane.scale)
+    measured := MeasureTerminalPane(pane.bounds, pane.font_size, pane.padding, pane.scale, pane.cell_width)
     result.cols = measured.cols
     result.rows = measured.rows
     result.focused = pane.focused
@@ -270,8 +288,10 @@ DrawTerminalPane :: (session: Sessions.Session, pane: TerminalPane) -> TerminalP
         while col < terminal.cols && col < measured.cols {
             cell := Engine.terminal_visible_cell(terminal, col, first + row)
             if cell != null && (cell.style & Engine.STYLE_WIDE_CONT) == 0 {
+                next := Engine.terminal_visible_cell(terminal, col + 1, first + row)
+                wide := next != null && (next.style & Engine.STYLE_WIDE_CONT) != 0
                 DrawCell(session, result.node, terminal, cell, colors, font, measured,
-                    col, row, pane.blink_on)
+                    col, row, pane.blink_on, pane.draw_text, wide)
             }
             col += 1
         }

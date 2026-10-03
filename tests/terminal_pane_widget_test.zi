@@ -139,12 +139,35 @@ TestMirror :: (session: Sessions.Session) -> bool {
     return true
 }
 
+fixed_cells: s32;
+fixed_wide: bool;
+DrawFixedText :: (session: Sessions.Session, node: s32, value: string,
+    bounds: Rectangle, font: s32, color: Color, clip: Rectangle) {
+    fixed_cells += 1
+    if value == "界" { fixed_wide = bounds.width == 14.0 }
+    Paint.PaintClippedLabel(session, node, value, cast(s32)bounds.x, cast(s32)bounds.y, font, color, clip)
+}
+TestFixedPitch :: (session: Sessions.Session) -> bool {
+    bounds := Rectangle.{0.0, 0.0, 100.0, 80.0}
+    terminal: Engine.Terminal; Engine.terminal_init(*terminal)
+    Engine.terminal_resize(*terminal, 14, 4); Feed(*terminal, "Mi界Á")
+    pane: Pane.TerminalPane
+    pane.key = cast(u64)4; pane.bounds = bounds; pane.font_size = 14
+    pane.terminal = *terminal; pane.cell_width = 7; pane.draw_text = DrawFixedText
+    measured := Pane.MeasureTerminalPane(bounds, 14, 0, 1.0, 7)
+    if measured.cell_width != 7 || measured.cols != 14 { return false }
+    Begin(session, bounds); result := Pane.DrawTerminalPane(session, pane)
+    ok := result.cols == 14 && fixed_cells == 4 && fixed_wide && Finish(session)
+    Engine.terminal_close(*terminal); return ok
+}
+
 #scope_export
 #program_export
 main :: () -> s32 {
     session := Sessions.SessionOpen()
     if !TestGrid(session) { return 1 }
     if !TestMirror(session) { return 17 }
+    if !TestFixedPitch(session) { return 18 }
     bounds := Rectangle.{0.0, 0.0, 68.0, 68.0}
     pane: Pane.TerminalPane
     pane.key = cast(u64)2; pane.bounds = bounds
