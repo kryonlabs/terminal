@@ -19,7 +19,7 @@ else
     toolchain=$("$launcher" pkg path ziran --locked)
 fi
 if [ ! -x "$toolchain/build/bin/ziran" ]; then
-    printf 't9: build the package toolchain first: make -C %s build/bin/ziran\n' "$toolchain" >&2
+    printf 'Terminal: build the package toolchain first: make -C %s build/bin/ziran\n' "$toolchain" >&2
     exit 1
 fi
 exec "$toolchain/build/bin/ziran" "$@"

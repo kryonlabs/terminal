@@ -91,8 +91,8 @@ for(form in $form) {
             }
         }
         if(~ \$failed 0) {
-            if(! ./t9 --help > help.txt || ! grep 'usage: t9' help.txt) failed=1
-            if(! ./t9 --version > version.txt || ! grep 't9 0.1' version.txt) failed=1
+            if(! ./t9 --help > help.txt || ! grep 'usage: terminal' help.txt) failed=1
+            if(! ./t9 --version > version.txt || ! grep 'Terminal 0.1' version.txt) failed=1
             if(! ./t9 --color-table > colors.txt || ! test -s colors.txt) failed=1
             if(./t9 --geometry bad >[2]error.txt) failed=1
             if(! grep 'invalid geometry' error.txt) failed=1

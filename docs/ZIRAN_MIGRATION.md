@@ -1,6 +1,6 @@
-# T9 Ziran migration
+# Terminal Ziran migration
 
-T9's maintained source language is Ziran (`.zi`). Legacy `.kry` files are
+Terminal's maintained source language is Ziran (`.zi`). Legacy `.kry` files are
 migration input only: each one is removed after its behavior has a current
 Ziran implementation and focused hosted/Plan 9 checks. No compatibility
 compiler path, dual product module, or `.kry` restore is part of the target.
@@ -24,7 +24,7 @@ Linux, Rill, native Plan 9, installation and release routes are verified.
 
 ## Build boundary and consolidation
 
-The canonical repository is `taijiosnet/t9`. Its history includes Kapsule's
+The canonical repository is `kryonlabs/terminal`. Its history includes Kapsule's
 original terminal sources and local compatibility fixes; those older C
 implementations are not restored alongside the maintained ports.
 

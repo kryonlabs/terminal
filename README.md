@@ -1,7 +1,7 @@
-# Terminal (`t9`)
+# Terminal
 
-t9 is the standalone Terminal application maintained by
-[Taiji OS](https://github.com/taijiosnet), using Kryon for windowing,
+Terminal is the standalone terminal application maintained by
+[KryonLabs](https://github.com/kryonlabs), using Kryon for windowing,
 rendering, input, and platform integration. The terminal emulator belongs here,
 not in Kryon.
 
@@ -58,10 +58,10 @@ device input and window operations.
 
 ## Embedding as a Ziran package
 
-t9 is also a Git-backed Ziran package. Add it to an existing application:
+Terminal is also a Git-backed Ziran package. Add it to an existing application:
 
 ```sh
-ziran add https://github.com/taijiosnet/t9.git
+ziran add https://github.com/kryonlabs/terminal.git --name t9
 ziran pkg list t9
 ```
 
@@ -81,7 +81,7 @@ owned children and `terminal_close` when removing a terminal to release its
 buffers and supervised child. Display and window lifecycle stay with the host.
 
 For a remote or otherwise host-managed process, set the pane's `write_input`
-callback and `input_userdata`; keyboard input is encoded by t9 and handed to
+callback and `input_userdata`; keyboard input is encoded by Terminal and handed to
 that callback instead of a local PTY. Hosts that capture input themselves can
 call `TerminalPaneHandleInputTo` with a `KeyboardFrame`. Set `scroll_offset`
 to the number of history rows above the live screen (zero follows the live
@@ -91,12 +91,12 @@ The package also exports `t9/terminal_keyboard`, `t9/terminal_pane_keys`,
 `t9/terminal_pane_profile_colors` and `t9/terminal_clipboard` for hosts that
 manage input frames, protocol encoding, colors or clipboard routing directly.
 Internal parser modules remain private. Applications should use the same
-locked Kryon dependency as t9 so their session and geometry types are shared.
-Local application overrides may name the canonical `taijiosnet/t9` checkout
+locked Kryon dependency as Terminal so their session and geometry types are shared.
+Local application overrides may name the canonical `kryonlabs/terminal` checkout
 in an ignored `ziran.local.toml`; no source copies or sibling module paths are
 needed in application code.
 
-`make package-test` adds t9 by its public HTTPS URL to a generated consumer,
+`make package-test` adds Terminal by its public HTTPS URL to a generated consumer,
 then compiles and runs package-qualified imports in C and C++ from source and
 saved IR. It checks Unicode/ANSI parsing, pane painting through the host's
 Kryon session, keyboard encoding and clipboard storage without a desktop
@@ -105,7 +105,7 @@ private modules stay unavailable through package-qualified imports.
 `T9_PACKAGE_LOCKED=1 make package-test` checks committed Git packages with
 `--locked` after generating the consumer's dependency lock.
 
-`make install` installs the `t9` command and a desktop launcher named Terminal.
+`make install` installs the `terminal` command (with the compatible `t9` command) and a desktop launcher named Terminal.
 The default `PREFIX` is `~/.local`; `DESTDIR` supports staged packaging.
 `install-test` checks a disposable staged installation.
 
@@ -137,36 +137,36 @@ belong in the manifest or release artifacts.
 Run options:
 
 ```sh
-t9 --working-directory /path/to/project
-t9 --default-working-directory /path/to/project
-t9 --shell /bin/bash
-t9 --command 'make test'
-t9 --command='make test'
-t9 -e 'make test'
-t9 -x make test
-t9 --title 'Build'
-t9 --command 'make test' --tab --title 'Logs' --command 'tail -f build.log'
-t9 --drop-down --title 'System' --command htop
-t9 --geometry 120x40
-t9 --fullscreen
-t9 --maximize
-t9 --hold
-t9 --font-size 18
-t9 --scrollback 10000
-t9 --cursor-style bar
-t9 --terminal-font /usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf
-t9 --terminal-foreground '#f2f2f2' --terminal-background '#101010' --terminal-cursor '#f2f2f2'
-t9 --terminal-selection-foreground '#101010' --terminal-selection-background '#5a8fd8'
+terminal --working-directory /path/to/project
+terminal --default-working-directory /path/to/project
+terminal --shell /bin/bash
+terminal --command 'make test'
+terminal --command='make test'
+terminal -e 'make test'
+terminal -x make test
+terminal --title 'Build'
+terminal --command 'make test' --tab --title 'Logs' --command 'tail -f build.log'
+terminal --drop-down --title 'System' --command htop
+terminal --geometry 120x40
+terminal --fullscreen
+terminal --maximize
+terminal --hold
+terminal --font-size 18
+terminal --scrollback 10000
+terminal --cursor-style bar
+terminal --terminal-font /usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf
+terminal --terminal-foreground '#f2f2f2' --terminal-background '#101010' --terminal-cursor '#f2f2f2'
+terminal --terminal-selection-foreground '#101010' --terminal-selection-background '#5a8fd8'
 ```
 
-t9 accepts common xfce4-terminal launch options:
+Terminal accepts common xfce4-terminal launch options:
 `--command`/`-e`, `--execute`/`-x`, `--default-working-directory`,
 `--title`/`-T`, `--hold`/`-H`, `--geometry`, `--fullscreen`, `--maximize`,
 `--drop-down`, `--disable-server`, `--tab`, `--window`, and
 menubar/toolbar/border visibility flags. `--tab` starts additional tabs from
 command-line specs. `--drop-down` starts a borderless top-of-screen terminal
 window. `--window` is accepted as a separator and currently opens another tab
-because t9 does not have multi-window process/server support yet.
+because Terminal does not have multi-window process/server support yet.
 
 Config is read from `$XDG_CONFIG_HOME/t9/config` or
 `~/.config/t9/config`:
@@ -185,16 +185,16 @@ shell=/bin/bash
 working_directory=/home/me/project
 ```
 
-String values saved by t9 use backslash escapes for tabs, newlines, and
+String values saved by Terminal use backslash escapes for tabs, newlines, and
 literal backslashes.
 
-t9 restores open tabs on startup when no command is configured, including
+Terminal restores open tabs on startup when no command is configured, including
 the active tab plus each tab's working directory, shell, command, scroll
 position, and manual title override. The restore file lives under
 `$XDG_STATE_HOME/t9/session`
 or `~/.local/state/t9/session`.
 
-t9 chrome and default terminal foreground/background/cursor colors follow
+Terminal chrome and default terminal foreground/background/cursor colors follow
 the Kryon system theme. Explicit profile colors and OSC color changes stay in
 control until reset.
 
@@ -282,7 +282,7 @@ Terminal graphics:
 - DECRQSS status-string reports answer SGR, scroll-margin, cursor-style, and
   character-protection queries with valid DCS responses.
 - XTGETTCAP (`DCS + q`) reports the terminal name, color capabilities, and the
-  special-key sequences t9 actually emits.
+  special-key sequences Terminal actually emits.
 - Horizontal tab set/clear controls are supported, including clearing all tab
   stops for terminal UI alignment.
 - DEC private cursor-position reports and DEC screen-alignment test are
@@ -312,3 +312,20 @@ Terminal graphics:
   DCS/ST are supported.
 - Erase-line, erase-display, reset, alternate-screen clear, scrolling, and
   scrollback eviction keep sixel images attached to the terminal content.
+
+## Name and repository compatibility
+
+The app is **Terminal** and its canonical checkout is `kryonlabs/terminal`.
+The GitHub organization transfer/rename is a separate remote operation; local
+source and references are prepared for that destination. No push or transfer
+is implied by this source change.
+
+The Ziran package/import identifier remains `t9` so existing consumers keep
+working; use `--name t9` when adding the new repository URL. The configuration
+(`~/.config/t9/config`, Plan 9 `/lib/t9/config`), saved sessions
+(`~/.local/state/t9/session`), existing `t9` executable, Debian package ID,
+`t9.desktop`/icon IDs, `T9_*` build/test variables and Plan 9 `open t9` host
+protocol are retained. The preferred `terminal` command is an alias to the
+same executable. Harmony and Rill retain their saved `t9` app/host IDs.
+Showcase slugs and existing banner paths stay stable for inbound links.
+Release asset names and all visible app labels use Terminal.

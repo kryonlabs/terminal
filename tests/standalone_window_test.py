@@ -77,8 +77,8 @@ def main():
         env.update(XDG_CONFIG_HOME=str(work / "config"), XDG_STATE_HOME=str(work / "state"),
                    KTREM_TARGET_FPS="15", KTREM_ACTIVE_FPS="30",
                    KTREM_PTY_BURST_MS="0", LP_NUM_THREADS="1", OMP_NUM_THREADS="1")
-        assert "usage: t9" in run([binary, "--help"], env).stdout
-        assert "t9 0.1" in run([binary, "--version"], env).stdout
+        assert "usage: terminal" in run([binary, "--help"], env).stdout
+        assert "Terminal 0.1" in run([binary, "--version"], env).stdout
         assert "\x1b[48;5;" in run([binary, "--color-table"], env).stdout
         assert "invalid geometry" in run([binary, "--geometry", "bad"], env, 2).stderr
 

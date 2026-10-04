@@ -222,9 +222,10 @@ test: package-test pane-ziran-test standalone-test independent-window-test insta
 install: $(APP)
 	mkdir -p "$(DESTDIR)$(BINDIR)" "$(DESTDIR)$(APPDIR)"
 	$(INSTALL) -m 755 "$(APP)" "$(DESTDIR)$(BINDIR)/t9"
+	ln -sfn t9 "$(DESTDIR)$(BINDIR)/terminal"
 	{ \
 		printf '%s\n' '[Desktop Entry]' 'Type=Application' 'Name=Terminal'; \
-		printf '%s\n' 'Comment=Kryon terminal emulator' 'Exec=$(BINDIR)/t9'; \
+		printf '%s\n' 'Comment=Kryon terminal emulator' 'Exec=$(BINDIR)/terminal'; \
 		printf '%s\n' 'Icon=utilities-terminal' 'Terminal=false' 'Categories=System;TerminalEmulator;'; \
 		printf '%s\n' 'Keywords=terminal;shell;t9;' 'StartupNotify=true'; \
 	} > "$(DESTDIR)$(APPDIR)/t9.desktop"
@@ -234,8 +235,9 @@ install-test: $(APP)
 	@set -eu; mkdir -p build/ziran; stage=$$(mktemp -d "$(CURDIR)/build/ziran/install.XXXXXX"); \
 		trap 'rm -rf "$$stage"' EXIT HUP INT TERM; \
 		$(MAKE) --no-print-directory install DESTDIR="$$stage" PREFIX=/usr; \
-		test -x "$$stage/usr/bin/t9"; test -f "$$stage/usr/share/applications/t9.desktop"; \
-		env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY "$$stage/usr/bin/t9" --version; \
+		test -x "$$stage/usr/bin/t9"; test -x "$$stage/usr/bin/terminal"; test -f "$$stage/usr/share/applications/t9.desktop"; \
+		env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY "$$stage/usr/bin/t9" --version | grep -qx "Terminal 0.1"; \
+		env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY "$$stage/usr/bin/terminal" --version | grep -qx "Terminal 0.1"; \
 		if command -v desktop-file-validate >/dev/null 2>&1; then desktop-file-validate "$$stage/usr/share/applications/t9.desktop"; fi
 
 pty-plan9-c:

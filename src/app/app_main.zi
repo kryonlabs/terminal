@@ -36,16 +36,16 @@ Run :: (arguments: []string) -> s32 {
     if Window.ForwardToRill() { return 0 }
     if !Window.Open(*host.app.launch) {
         Window.Close()
-        return Error("t9: could not open the graphics window")
+        return Error("Terminal: could not open the graphics window")
     }
     defer Window.Close()
     Window.LoadFont(*host.app.config)
     idle := Window.IdleRate(); active := Window.ActiveRate(idle)
     host.burst_ms = Window.BurstMilliseconds()
     start := Window.Now()
-    if !Host.Start(*host, Window.Bounds(), start) { return Error("t9: could not start Terminal") }
+    if !Host.Start(*host, Window.Bounds(), start) { return Error("Terminal: could not start Terminal") }
     session := Frames.SessionOpen()
-    if !Frames.SessionValid(session) { return Error("t9: could not open a UI session") }
+    if !Frames.SessionValid(session) { return Error("Terminal: could not open a UI session") }
     defer Frame.CloseSession(session)
     Window.Title(Host.Title(*host))
     capture := Window.CaptureRequested()
@@ -60,22 +60,22 @@ Run :: (arguments: []string) -> s32 {
         device := Window.Sample(session, now, down[:])
         if cast(s32)Frame.BeginFrame(session, cast(u64)1, bounds) != 0 {
             Window.End()
-            return Error("t9: could not begin a UI frame")
+            return Error("Terminal: could not begin a UI frame")
         }
         result := Host.Draw(*host, session, bounds, device)
         if cast(s32)Frame.EndFrame(session) != 0 {
             Window.End()
-            return Error("t9: could not draw the UI frame")
+            return Error("Terminal: could not draw the UI frame")
         }
         Window.Apply(result.input)
         if result.font_changed { Window.LoadFont(*host.app.config) }
         if result.title_changed { Window.Title(Host.Title(*host)) }
         captured: bool
         if capture && now - start >= 0.1 { captured = Window.Capture() }
-        if !Window.End() { return Error("t9: could not present the UI frame") }
+        if !Window.End() { return Error("Terminal: could not present the UI frame") }
         if capture && now - start >= 0.1 {
             if captured { return 0 }
-            return Error("t9: could not save the window capture")
+            return Error("Terminal: could not save the window capture")
         }
         if result.quit { break }
         Window.Rate(ifx now < host.fast_poll_until then active else idle)
@@ -83,9 +83,9 @@ Run :: (arguments: []string) -> s32 {
     return 0
 }
 Main :: (argc: s32, argv: **s8) -> s32 {
-    if argc <= 0 || argv == null { return Error("t9: missing process arguments", 2) }
+    if argc <= 0 || argv == null { return Error("Terminal: missing process arguments", 2) }
     data := cast(*string)Allocate(cast(usize)argc, cast(usize)size_of(string))
-    if data == null { return Error("t9: could not allocate process arguments") }
+    if data == null { return Error("Terminal: could not allocate process arguments") }
     defer Release(cast(*void)data)
     for index: 0..argc - 1 { data[index] = Bytes.TextFromCString(cast(*u8)argv[index]) }
     arguments: []string

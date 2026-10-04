@@ -48,5 +48,6 @@ trap 'rm -f "$temporary"' EXIT HUP INT TERM
     $(pkg-config --libs sdl2) -lGL -ldl -lpthread -lm -o "$temporary"
 chmod 755 "$temporary"
 mv "$temporary" "$output/bin/t9"
+ln -sfn t9 "$output/bin/terminal"
 trap - EXIT HUP INT TERM
 echo "Terminal executable: $output/bin/t9"

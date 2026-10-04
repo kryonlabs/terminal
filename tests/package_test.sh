@@ -40,7 +40,7 @@ pathlib.Path(path).write_text('[overrides]\n' + ''.join(
     for name, value in [('ziran', toolchain), ('t9', terminal), ('kryon', kryon)]))
 PY
 cd "$work"
-"$compiler" add https://github.com/taijiosnet/t9.git
+"$compiler" add https://github.com/kryonlabs/terminal.git --name t9
 consumer_flags=
 if test "${T9_PACKAGE_LOCKED:-0}" = 1; then
     # Test committed Git objects rather than local work in progress.
@@ -69,4 +69,4 @@ for form in source saved; do
     "${CXX:-c++}" -std=c++17 -O1 -I"$form-cpp" "$form-cpp"/*.cpp -o "$form-cpp/run"
     timeout --kill-after=2s 15s "./$form-cpp/run"
 done
-echo 'External t9 package consumer passed C/C++ from source and saved IR'
+echo 'External Terminal package consumer passed C/C++ from source and saved IR'

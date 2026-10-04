@@ -1,16 +1,20 @@
 {
   "schemaVersion": 1,
   "slug": "t9",
-  "name": "t9",
+  "name": "Terminal",
   "summary": "Native terminal application with sessions, tabs, and focused developer workflows.",
   "repository": {
     "platform": "github",
-    "url": "https://github.com/taijiosnet/t9",
-    "owner": "taijiosnet",
-    "name": "t9"
+    "url": "https://github.com/kryonlabs/terminal",
+    "owner": "kryonlabs",
+    "name": "terminal"
   },
   "homepage": "https://ktrem.kryonlabs.com",
   "banner": "showcase/banner.png",
-  "tags": ["terminal", "developer-tools", "desktop"],
+  "tags": [
+    "terminal",
+    "developer-tools",
+    "desktop"
+  ],
   "featured": true
 }

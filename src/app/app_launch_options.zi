@@ -251,7 +251,7 @@ Parse :: (options: *LaunchOptions, config: *Types.TerminalPaneProfileSettings,
 }
 
 PrintUsage :: () {
-    print("usage: t9 [options]\n")
+    print("usage: terminal [options]\n")
     print("  --working-directory PATH, --default-working-directory PATH\n")
     print("  --shell PATH; --command CMD, --command=CMD, -e CMD\n")
     print("  -x, --execute CMD [ARG...]; --tab, --window, --drop-down\n")
@@ -271,7 +271,7 @@ PrintUsage :: () {
     print("  --disable-menu-mnemonics, --disable-menu-shortcut, --disable-help-shortcut\n")
     print("  --background-opacity 0..100, --background-image PATH\n")
 }
-PrintVersion :: () { print("t9 0.1\n") }
+PrintVersion :: () { print("Terminal 0.1\n") }
 PrintColorTable :: () {
     for index: cast(s32)0..cast(s32)15 {
         print("\x1b[48;5;%m  \x1b[0m ", index)

@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 env:
-  T9_DIR: t9
+  TERMINAL_DIR: terminal
   ZIRAN: ${{ github.workspace }}/ziran/build/bin/ziran
   T9_BUILD_JOBS: 1
   LP_NUM_THREADS: 1
@@ -29,14 +29,14 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Check out t9
+      - name: Check out Terminal
         uses: actions/checkout@v4
         with:
-          path: ${{ env.T9_DIR }}
+          path: ${{ env.TERMINAL_DIR }}
 
       - name: Read locked toolchain
         id: toolchain
-        working-directory: ${{ env.T9_DIR }}
+        working-directory: ${{ env.TERMINAL_DIR }}
         run: |
           python3 - <<'PY'
           import json
@@ -83,15 +83,15 @@ jobs:
         working-directory: ziran
         run: env -u DISPLAY -u WAYLAND_DISPLAY make -j2 JOBS=2 all
 
-      - name: Build and test t9 from locked packages
-        working-directory: ${{ env.T9_DIR }}
+      - name: Build and test Terminal from locked packages
+        working-directory: ${{ env.TERMINAL_DIR }}
         run: |
           test ! -e ziran.local.toml
           env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY \
             -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER make -j1 all test
 
       - name: Package Linux release assets
-        working-directory: ${{ env.T9_DIR }}
+        working-directory: ${{ env.TERMINAL_DIR }}
         run: |
           set -eu
           umask 022
@@ -102,9 +102,10 @@ jobs:
             [0-9]*) ;;
             *) deb_version="0.0.0+${deb_version}" ;;
           esac
-          package="t9-linux-x86_64-${version}"
+          package="terminal-linux-x86_64-${version}"
           mkdir -p "dist/${package}/bin"
           cp build/linux-x86_64/bin/t9 "dist/${package}/bin/t9"
+          ln -s t9 "dist/${package}/bin/terminal"
           cp README.md "dist/${package}/README.md"
           cp docs/REMAINING_FEATURE_PLAN.md \
             "dist/${package}/REMAINING_FEATURE_PLAN.md"
@@ -122,6 +123,7 @@ jobs:
             "${deb_root}/usr/share/icons/hicolor/scalable/apps"
           chmod 755 "${deb_root}/DEBIAN"
           cp build/linux-x86_64/bin/t9 "${deb_root}/usr/bin/t9"
+          ln -s t9 "${deb_root}/usr/bin/terminal"
           cp README.md "${deb_root}/usr/share/doc/t9/README.md"
           cp docs/site/favicon.svg \
             "${deb_root}/usr/share/icons/hicolor/scalable/apps/t9.svg"
@@ -130,7 +132,7 @@ jobs:
           Type=Application
           Name=Terminal
           Comment=Kryon terminal emulator
-          Exec=t9
+          Exec=terminal
           Icon=t9
           Terminal=false
           Categories=System;TerminalEmulator;
@@ -146,18 +148,19 @@ jobs:
           Depends: libc6, libsdl2-2.0-0, libgl1
           Recommends: fonts-dejavu-core
           Description: Kryon terminal emulator
-           t9 is a standalone terminal application using Kryon for windowing,
+           Terminal is a standalone terminal application using Kryon for windowing,
            rendering, input, and platform integration.
           EOF
           chmod 644 "${deb_root}/DEBIAN/control"
           dpkg-deb --build --root-owner-group "${deb_root}" \
-            "dist/t9_${deb_version}_amd64.deb"
+            "dist/terminal_${deb_version}_amd64.deb"
 
           appdir="dist/AppDir"
           mkdir -p "${appdir}/usr/bin" \
             "${appdir}/usr/share/applications" \
             "${appdir}/usr/share/icons/hicolor/scalable/apps"
           cp build/linux-x86_64/bin/t9 "${appdir}/usr/bin/t9"
+          ln -s t9 "${appdir}/usr/bin/terminal"
           cp docs/site/favicon.svg \
             "${appdir}/usr/share/icons/hicolor/scalable/apps/t9.svg"
           cp "${deb_root}/usr/share/applications/t9.desktop" \
@@ -170,32 +173,32 @@ jobs:
           #!/bin/sh
           HERE="$(dirname "$(readlink -f "$0")")"
           export PATH="${HERE}/usr/bin:${PATH}"
-          exec "${HERE}/usr/bin/t9" "$@"
+          exec "${HERE}/usr/bin/terminal" "$@"
           EOF
           chmod +x "${appdir}/AppRun"
           curl -fL -o /tmp/appimagetool \
             https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x /tmp/appimagetool
           ARCH=x86_64 /tmp/appimagetool --appimage-extract-and-run \
-            "${appdir}" "dist/t9-x86_64-${version}.AppImage"
+            "${appdir}" "dist/terminal-x86_64-${version}.AppImage"
 
           sha256sum "dist/${package}.tar.gz" \
-            "dist/t9_${deb_version}_amd64.deb" \
-            "dist/t9-x86_64-${version}.AppImage" > "dist/SHA256SUMS"
+            "dist/terminal_${deb_version}_amd64.deb" \
+            "dist/terminal-x86_64-${version}.AppImage" > "dist/SHA256SUMS"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: t9-linux-x86_64
+          name: terminal-linux-x86_64
           path: |
-            ${{ env.T9_DIR }}/dist/*.tar.gz
-            ${{ env.T9_DIR }}/dist/*.deb
-            ${{ env.T9_DIR }}/dist/*.AppImage
-            ${{ env.T9_DIR }}/dist/SHA256SUMS
+            ${{ env.TERMINAL_DIR }}/dist/*.tar.gz
+            ${{ env.TERMINAL_DIR }}/dist/*.deb
+            ${{ env.TERMINAL_DIR }}/dist/*.AppImage
+            ${{ env.TERMINAL_DIR }}/dist/SHA256SUMS
 
       - name: Upload release assets
         if: github.event_name == 'release'
-        working-directory: ${{ env.T9_DIR }}
+        working-directory: ${{ env.TERMINAL_DIR }}
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}

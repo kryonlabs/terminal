@@ -3,25 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>t9 — Terminal and Ziran</title>
-  <meta name="description" content="t9 is a Linux terminal maintained in Ziran. Its source migration and Ziran-based Kryon integration are underway; benchmark figures are a recorded snapshot.">
+  <title>Terminal — Terminal and Ziran</title>
+  <meta name="description" content="Terminal is a Linux terminal maintained in Ziran. Its source migration and Ziran-based Kryon integration are underway; benchmark figures are a recorded snapshot.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://ktrem.kryonlabs.com/">
-  <meta property="og:title" content="t9 - Kryon terminal">
+  <meta property="og:title" content="Terminal - Kryon terminal">
   <meta property="og:description" content="A terminal moving to Ziran sources, with recorded benchmarks and active Kryon integration.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:url" content="https://ktrem.kryonlabs.com/">
-  <meta name="twitter:title" content="t9 - Kryon terminal">
+  <meta name="twitter:title" content="Terminal - Kryon terminal">
   <meta name="twitter:description" content="A terminal with tabs, search, recorded benchmarks, and an active Ziran migration.">
   <meta name="theme-color" content="#f3f1ea">
-  <meta name="keywords" content="t9,Kryon,Kryon Labs,terminal,xfce4-terminal,terminal emulator,Linux terminal,benchmarks">
+  <meta name="keywords" content="Terminal,Kryon,Kryon Labs,terminal,xfce4-terminal,terminal emulator,Linux terminal,benchmarks">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="styles.css">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "t9",
+    "name": "Terminal",
     "description": "A Linux terminal whose maintained source language is Ziran.",
     "url": "https://ktrem.kryonlabs.com",
     "applicationCategory": "DeveloperApplication",
@@ -34,7 +34,7 @@
 <body>
   <header class="site-header">
     <div class="site-header-inner">
-      <a class="brand" href="#top" aria-label="t9 home">
+      <a class="brand" href="#top" aria-label="Terminal home">
         <img src="favicon.svg" alt="" width="24" height="24">
         <span>KTREM</span>
       </a>
@@ -46,19 +46,19 @@
         <a href="#install">Install</a>
         <a href="#roadmap">Roadmap</a>
         <a class="is-external" href="https://ziran.kryonlabs.com/">Ziran</a><a class="is-external" href="https://kryonlabs.com">Kryon</a>
-        <a class="btn btn-primary" href="#install">Get t9</a>
+        <a class="btn btn-primary" href="#install">Get Terminal</a>
       </nav>
     </div>
   </header>
 
-  <div class="migration-banner"><strong>Migration note:</strong> t9’s maintained application and terminal engine are written in Ziran (<code>.zi</code>) and build with current Kryon modules. Native graphical input, font fallback, Rill integration and fresh locked release builds remain migration work.</div>
+  <div class="migration-banner"><strong>Migration note:</strong> Terminal’s maintained application and terminal engine are written in Ziran (<code>.zi</code>) and build with current Kryon modules. Native graphical input, font fallback, Rill integration and fresh locked release builds remain migration work.</div>
   <main id="top">
     <section class="hero">
       <div class="hero-inner">
         <span class="hero-eyebrow"><span class="dot"></span>Terminal emulator · Ziran migration</span>
-        <img class="hero-icon" src="favicon.svg" width="84" height="84" alt="t9">
-        <h1>t9</h1>
-        <p class="hero-sub">t9 is Taiji OS’s Terminal application, written in Ziran and using Kryon for its interface and platform hosts. Recorded benchmarks describe an earlier transition build; the complete native and release validation remains in progress.</p>
+        <img class="hero-icon" src="favicon.svg" width="84" height="84" alt="Terminal">
+        <h1>Terminal</h1>
+        <p class="hero-sub">Terminal is KryonLabs’ Terminal application, written in Ziran and using Kryon for its interface and platform hosts. Recorded benchmarks describe an earlier transition build; the complete native and release validation remains in progress.</p>
         <div class="hero-cta">
           <a class="btn btn-primary" href="#benchmarks">View benchmarks</a>
           <a class="btn" href="#parity">Parity matrix</a>
@@ -66,17 +66,17 @@
         </div>
       </div>
 
-      <figure class="hero-terminal" aria-label="t9 terminal preview">
+      <figure class="hero-terminal" aria-label="Terminal terminal preview">
         <div class="window-bar">
           <span class="traffic"></span><span class="traffic"></span><span class="traffic"></span>
-          <span class="window-title">t9 - benchmarks</span>
+          <span class="window-title">Terminal - benchmarks</span>
         </div>
         <div class="tabs">
           <span class="tab is-active">1: shell</span>
           <span class="tab">2: build</span>
           <span class="tab">3: logs</span>
         </div>
-        <pre><code><span class="prompt">$</span> t9 -x make test --tab
+        <pre><code><span class="prompt">$</span> terminal -x make test --tab
 ok terminal
 
 <span class="prompt">$</span> make benchmark-parser
@@ -92,15 +92,15 @@ Alt+1..Alt+8 switch tabs directly.</code></pre>
     <section class="status-strip" aria-label="Current status">
       <div>
         <strong>Recorded benchmark snapshot</strong>
-        <span>In the recorded synthetic suite, t9 beat xfce4-terminal averages for measured output workloads. These results are not a current release guarantee.</span>
+        <span>In the recorded synthetic suite, Terminal beat xfce4-terminal averages for measured output workloads. These results are not a current release guarantee.</span>
       </div>
       <div>
         <strong>Recorded Xvfb workflows</strong>
-        <span>t9 averages 158.7 ms on live resize, 206.3 ms on clipboard paste, and 613.0 ms on find workflow under Xvfb.</span>
+        <span>Terminal averages 158.7 ms on live resize, 206.3 ms on clipboard paste, and 613.0 ms on find workflow under Xvfb.</span>
       </div>
       <div>
         <strong>Legacy Kryon dependency</strong>
-        <span>The terminal app lives in t9. Maintained sources are Ziran; legacy inputs are deleted module by module.</span>
+        <span>The terminal app lives in Terminal. Maintained sources are Ziran; legacy inputs are deleted module by module.</span>
       </div>
     </section>
 
@@ -113,7 +113,7 @@ Alt+1..Alt+8 switch tabs directly.</code></pre>
           <thead>
             <tr>
               <th>Workload</th>
-              <th>t9 avg</th>
+              <th>Terminal avg</th>
               <th>xfce4-terminal avg</th>
               <th>State</th>
             </tr>
@@ -170,7 +170,7 @@ Alt+1..Alt+8 switch tabs directly.</code></pre>
     <section id="parity">
       <p class="section-eyebrow">Parity</p>
       <h2>Close, but not declared done</h2>
-      <p class="section-lead">t9 is already competitive on synthetic throughput and has a large terminal-compatibility surface. The remaining work is about server/drop-down behavior, packaging, and broader real-desktop validation.</p>
+      <p class="section-lead">Terminal is already competitive on synthetic throughput and has a large terminal-compatibility surface. The remaining work is about server/drop-down behavior, packaging, and broader real-desktop validation.</p>
       <div class="parity-grid">
         <article class="parity-card">
           <h3>Implemented</h3>
@@ -224,7 +224,7 @@ Alt+1..Alt+8 switch tabs directly.</code></pre>
         </article>
         <article class="feature-card">
           <h3>Kryon integration</h3>
-          <p>The application uses current Kryon modules for windowing, rendering, input, themes and platform hooks. Terminal behavior stays in t9’s Ziran modules. Native graphical input, font fallback and embedded desktop integration still need complete application checks.</p>
+          <p>The application uses current Kryon modules for windowing, rendering, input, themes and platform hooks. Terminal behavior stays in Terminal’s Ziran modules. Native graphical input, font fallback and embedded desktop integration still need complete application checks.</p>
         </article>
       </div>
     </section>
@@ -232,10 +232,10 @@ Alt+1..Alt+8 switch tabs directly.</code></pre>
     <section id="install" class="callout">
       <div class="callout-inner">
         <p class="section-eyebrow">Install</p>
-        <h2>Check t9 locally</h2>
+        <h2>Check Terminal locally</h2>
         <p>Install Ziran on your PATH and the Linux build dependencies listed in the README. The application uses Git-backed Ziran packages and the committed dependency lock. Window checks run on a private display; native and release validation remains in progress.</p>
-<pre><code>git clone https://github.com/taijiosnet/t9.git
-cd t9
+<pre><code>git clone https://github.com/kryonlabs/terminal.git
+cd terminal
 make -j1
 make standalone-window-test
 make pane-ziran-test
@@ -250,13 +250,13 @@ make install</code></pre>
         <div class="step"><span class="step-num">1</span><div><h3>Broaden benchmark coverage</h3><p>Add longer real-desktop workflow runs beside the existing output, clipboard paste, find, and live-resize Xvfb suites.</p></div></div>
         <div class="step"><span class="step-num">2</span><div><h3>Close launch/server parity</h3><p>Add real separate windows, single-instance command routing, and drop-down toggle behavior.</p></div></div>
         <div class="step"><span class="step-num">3</span><div><h3>Fix missing glyphs completely</h3><p>Add fontconfig fallback so box drawing, Powerline, CJK, symbols, Greek, and Cyrillic can resolve from installed system fonts.</p></div></div>
-        <div class="step"><span class="step-num">4</span><div><h3>Move renderer work into Kryon where reusable</h3><p>Keep t9 logic in t9, but add reusable Kryon primitives for a retained GPU terminal-grid renderer when the design is proven.</p></div></div>
+        <div class="step"><span class="step-num">4</span><div><h3>Move renderer work into Kryon where reusable</h3><p>Keep Terminal logic in Terminal, but add reusable Kryon primitives for a retained GPU terminal-grid renderer when the design is proven.</p></div></div>
       </div>
     </section>
   </main>
 
   <footer class="site-footer">
-    <p>&copy; 2026 Taiji OS - <a href="https://kryonlabs.com">Kryon</a> - <a href="https://github.com/taijiosnet/t9">GitHub</a></p>
+    <p>&copy; 2026 KryonLabs - <a href="https://kryonlabs.com">Kryon</a> - <a href="https://github.com/kryonlabs/terminal">GitHub</a></p>
   </footer>
 
   <script>
