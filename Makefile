@@ -217,7 +217,11 @@ clipboard-plan9-c:
 package-test:
 	ZIRAN="$(ZIRAN)" sh tests/package_test.sh
 
-test: package-test pane-ziran-test standalone-test independent-window-test install-test parser-replay-test
+test: package-test pane-ziran-test standalone-test independent-window-test install-test parser-replay-test reflow-cursor-test
+
+.PHONY: reflow-cursor-test
+reflow-cursor-test:
+	sh tests/reflow_cursor_test.sh
 
 install: $(APP)
 	mkdir -p "$(DESTDIR)$(BINDIR)" "$(DESTDIR)$(APPDIR)"

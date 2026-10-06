@@ -1,4 +1,5 @@
 #import "terminal_pane_reflow"
+#import "terminal_pane_cursor"
 
 Fill :: (output: *u8, value: string) {
     index: s32 = 0
@@ -25,6 +26,48 @@ CharBlank :: (cell: *void, userdata: *void) -> s32 {
     value: *u8 = cast(*u8)cell
     if userdata != null || value == null { return 0 }
     return cast(s32)(value[0] == 32)
+}
+
+// Compare the inexpensive cursor map against the existing full cell reflow,
+// including wrap boundaries, blank rows and cursors after the text extent.
+CheckCursorMap :: () -> bool {
+    input: [4][8]u8; wrapped: [4]u8; rows: [4]TerminalPaneReflowRow
+    output: [16][12]u8; output_wrapped: [16]u8; blank: u8 = 32
+    spec: TerminalPaneReflowSpec
+    spec.input_cells = cast(*void)*input[0][0]; spec.input_wrapped = *wrapped[0]
+    spec.input_cols = 8; spec.input_rows = 4; spec.output_cells = cast(*void)*output[0][0]
+    spec.output_wrapped = *output_wrapped[0]; spec.output_rows = 16
+    spec.cell_size = 1; spec.blank_cell = cast(*void)*blank; spec.is_blank = CharBlank
+    col: s32; row: s32; count: s32
+    spec.cursor_output_col = *col; spec.cursor_output_row = *row; spec.output_row_count = *count
+    for pattern: 0..cast(s32)15 {
+        for r: 0..cast(s32)3 {
+            wrapped[r] = cast(u8)((pattern >> r) & 1)
+            end := ifx r == 3 then 0 else (pattern + r * 3) % 9
+            for c: 0..cast(s32)7 { input[r][c] = ifx c < end then cast(u8)65 else cast(u8)32 }
+            rows[r].wrapped = wrapped[r] != cast(u8)0
+            rows[r].end = ifx rows[r].wrapped then 8 else end
+        }
+        for width: 3..cast(s32)12 {
+            spec.output_cols = width
+            for cy: 0..cast(s32)3 { for cx: 0..cast(s32)8 { for trim: 0..cast(s32)1 {
+                spec.cursor_input_col = cx; spec.cursor_input_row = cy; spec.trim_blank_rows_after_cursor = trim
+                if TerminalPaneReflowRows(*spec) != 1 { return false }
+                mapped := MeasureTerminalPaneReflowCursor(rows[:], width, cx, cy, trim != 0)
+                if mapped.col != col || mapped.row != row || mapped.rows != count {
+                    print("Cursor map mismatch pattern % width % cursor %, % trim %: got %, %, % expected %, %, %\n", pattern, width, cx, cy, trim, mapped.col, mapped.row, mapped.rows, col, row, count)
+                    return false
+                }
+                if wrapped[0] != cast(u8)0 && cy > 0 {
+                    prefix_rows := 7 / width; prefix_col := 8 - prefix_rows * width
+                    suffix := MeasureTerminalPaneReflowCursor(rows[1:], width, cx, cy - 1, trim != 0, prefix_col)
+                    if suffix.col != col || suffix.row + prefix_rows != row || suffix.rows + prefix_rows != count { return false }
+                }
+            } } }
+        }
+    }
+    if MeasureTerminalPaneReflowCursor(rows[:], 0, 0, 0).row != -1 { return false }
+    return true
 }
 
 #program_export
@@ -96,5 +139,6 @@ main :: () -> s32 {
 
     spec.output_cols = 0
     if TerminalPaneReflowRows(*spec) != 0 { return 7 }
+    if !CheckCursorMap() { return 8 }
     return 0
 }

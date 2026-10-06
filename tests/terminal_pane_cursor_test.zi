@@ -1,0 +1,21 @@
+#import "terminal_pane_cursor"
+
+#program_export
+main :: () -> s32 {
+    rows: [3]TerminalPaneReflowRow
+    rows[0] = .{8, true}; rows[1] = .{4, false}; rows[2] = .{0, false}
+    joined := MeasureTerminalPaneReflowCursor(rows[:], 12, 2, 1)
+    if joined.col != 10 || joined.row != 0 || joined.rows != 1 { return 1 }
+    edge := MeasureTerminalPaneReflowCursor(rows[:], 8, 0, 1)
+    if edge.col != 8 || edge.row != 0 || edge.rows != 2 { return 2 }
+    blank := MeasureTerminalPaneReflowCursor(rows[:], 5, 7, 2)
+    if blank.col != 2 || blank.row != 4 || blank.rows != 4 { return 3 }
+    extent := MeasureTerminalPaneReflowCursor(rows[:], 5, 7, 1)
+    if extent.col != 0 || extent.row != 3 || extent.rows != 3 { return 4 }
+    untrimmed := MeasureTerminalPaneReflowCursor(rows[:], 12, 2, 1, false)
+    if untrimmed.col != 10 || untrimmed.row != 0 || untrimmed.rows != 2 { return 5 }
+    if MeasureTerminalPaneReflowCursor(rows[:], 0, 0, 0).row != -1 ||
+        MeasureTerminalPaneReflowCursor(rows[:], 12, -1, 0).row != -1 ||
+        MeasureTerminalPaneReflowCursor(rows[:], 12, 0, 3).row != -1 { return 6 }
+    print("Portable cursor reflow passed\n"); return 0
+}

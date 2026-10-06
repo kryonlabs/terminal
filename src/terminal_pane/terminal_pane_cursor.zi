@@ -1,0 +1,40 @@
+// Row extents are enough to map a cursor through an unchanged reflow. A host
+// can retain these small values instead of replaying its entire transcript
+// whenever capture-pane reports a new cursor position.
+TerminalPaneReflowRow :: struct { end: s32; wrapped: bool }
+TerminalPaneReflowPosition :: struct { col: s32; row: s32; rows: s32 }
+
+MeasureTerminalPaneReflowCursor :: (rows: []TerminalPaneReflowRow,
+    output_cols: s32, cursor_col: s32, cursor_row: s32,
+    trim_blank_rows_after_cursor: bool = true,
+    initial_col: s32 = 0) -> TerminalPaneReflowPosition {
+    result: TerminalPaneReflowPosition; result.col = -1; result.row = -1
+    if output_cols <= 0 || initial_col < 0 || initial_col > output_cols || cursor_col < 0 || cursor_row < 0 || cursor_row >= cast(s32)rows.count { return result }
+    count := cast(s32)rows.count
+    if trim_blank_rows_after_cursor {
+        while count > cursor_row + 1 && !rows[count - 1].wrapped && rows[count - 1].end == 0 { count -= 1 }
+    }
+    out_row: s32; out_col: s32 = initial_col
+    for row: 0..count - 1 {
+        end := rows[row].end; if end < 0 { return result }
+        if row == cursor_row && cursor_col < end {
+            // ReflowRows captures the cursor before appending its cell; an
+            // exact right-edge position therefore belongs to the prior row.
+            position := out_col + cursor_col
+            wraps := ifx position > 0 then (position - 1) / output_cols else 0
+            result.row = out_row + wraps; result.col = position - wraps * output_cols
+        }
+        if end > 0 {
+            position := out_col + end
+            wraps := (position - 1) / output_cols
+            out_row += wraps; out_col = position - wraps * output_cols
+        }
+        if row == cursor_row && cursor_col >= end {
+            position := out_col + cursor_col - end
+            result.row = out_row + position / output_cols; result.col = position % output_cols
+        }
+        if !rows[row].wrapped { out_row += 1; out_col = 0 }
+    }
+    if out_col > 0 { out_row += 1 }
+    result.rows = out_row; return result
+}
