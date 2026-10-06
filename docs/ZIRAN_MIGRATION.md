@@ -37,6 +37,12 @@ checked as native C/C++ and from saved IR. `make keys-plan9-test` with
 `TAIJI_DIR` set to the canonical Taiji checkout compiles and executes the
 same keyboard fixture from source and saved IR under native Plan 9 8c/8l.
 Raw-buffer pane APIs are native code; portable bundle coverage is not claimed.
+Detached complete-screen replay also belongs in Terminal. Its
+`terminal_feed_capture` uses the same parser with batched history evacuation
+for text and SGR; other commands retain ordinary parsing. The source and saved
+IR capture suite compares all cells, styles, combining marks, wrap flags,
+cursor positions and history across later feeds and reflow in C and C++,
+and executes under native Plan 9 8c/8l from source and saved IR.
 `make clipboard-plan9-c` emits the clipboard fixture's Plan 9 C output;
 `make clipboard-plan9-test selection-plan9-test` compiles and executes the
 selection, clipboard actions, and OSC52/paste fixtures with native 8c/8l. The

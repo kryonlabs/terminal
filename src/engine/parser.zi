@@ -14,6 +14,10 @@ PARSER_IGNORE_ESCAPE :: 10
 
 #scope_module
 line_feed :: (terminal: *Terminal) {
+    if terminal.capture_batch && capture_line_feed(terminal) {
+        terminal_clamp_cursor(terminal)
+        return
+    }
     if terminal.cursor_row == terminal.scroll_bottom {
         terminal_scroll_up(terminal, terminal.scroll_top,
         terminal.scroll_bottom, 1)

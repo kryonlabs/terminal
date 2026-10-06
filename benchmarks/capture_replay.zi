@@ -1,0 +1,82 @@
+// Measure the detached capture-pane path independently of UI and transport.
+#import "terminal";
+Text :: #import "std/byte_text_linux";
+#import "std/text"
+libc :: #system_library "c";
+ClockValue :: struct { seconds: s64; nanoseconds: s64; }
+ReadClock :: (clock: s32, value: *ClockValue) -> s32 #foreign libc "clock_gettime";
+
+Nanoseconds :: () -> s64 {
+    value: ClockValue
+    if ReadClock(1, *value) != 0 { return -1 }
+    return value.seconds * 1000000000 + value.nanoseconds
+}
+Feed :: (terminal: *Terminal, value: string) {
+    descriptor := cast(*Text.TextDescriptor)(*value)
+    terminal_feed(terminal, cast(*void)descriptor.data, cast(s32)value.count)
+}
+Replay :: (terminal: *Terminal, value: string) -> bool {
+    #if #defined(CAPTURE_REPLAY) {
+        descriptor := cast(*Text.TextDescriptor)(*value)
+        return terminal_feed_capture(terminal, cast(*void)descriptor.data, cast(s32)value.count, true)
+    } else {
+        start: s64
+        for index: cast(s64)0..value.count - 1 {
+            if value[index] == 10 { Feed(terminal, value[start:index]); Feed(terminal, "\r\n"); start = index + 1 }
+        }
+        Feed(terminal, value[start:value.count])
+        return true
+    }
+}
+Hash :: (terminal: *Terminal) -> u64 {
+    result: u64 = 1469598103934665603
+    for row: 0..terminal_visible_line_count(terminal) - 1 {
+        result = (result ^ cast(u64)terminal_visible_line_wrapped(terminal, row)) * cast(u64)1099511628211
+        for col: 0..terminal.cols - 1 {
+            cell := terminal_visible_cell(terminal, col, row)
+            result = (result ^ cast(u64)cell.codepoint) * cast(u64)1099511628211
+            result = (result ^ cast(u64)cell.combining) * cast(u64)1099511628211
+            result = (result ^ cast(u64)cell.fg) * cast(u64)1099511628211
+            result = (result ^ cast(u64)cell.bg) * cast(u64)1099511628211
+            result = (result ^ cast(u64)cell.underline) * cast(u64)1099511628211
+            result = (result ^ cast(u64)cell.hyperlink) * cast(u64)1099511628211
+            result = (result ^ cast(u64)cell.style) * cast(u64)1099511628211
+        }
+    }
+    return result
+}
+Run :: (lines: s32, cols: s32) -> bool {
+    buffer: Vec(u8)
+    for row: 0..lines - 2 { BuilderPrint(*buffer, "ROW % \x1b[32mterminal café Ω results\x1b[0m\n", row) }
+    BuilderPrint(*buffer, "LATEST PROMPT")
+    value := BuilderFinish(buffer)
+    terminal: Terminal
+    terminal_init(*terminal)
+    allocate_ns: s64; feed_ns: s64; reflow_ns: s64
+    for iteration: 0..cast(s32)249 {
+        started := Nanoseconds()
+        terminal_close(*terminal); terminal_init(*terminal); terminal_resize(*terminal, 80, 24)
+        allocate_ns += Nanoseconds() - started
+        started = Nanoseconds()
+        if !Replay(*terminal, value) { terminal_close(*terminal); return false }
+        feed_ns += Nanoseconds() - started
+        terminal.cursor_col = 15; terminal.cursor_row = 23
+        started = Nanoseconds()
+        terminal_resize(*terminal, cols, 16)
+        reflow_ns += Nanoseconds() - started
+    }
+    print("{\"lines\":%,\"cols\":%,\"samples\":250,\"allocate_ns\":%,\"feed_ns\":%,\"reflow_ns\":%,\"cell_hash\":%}\n",
+        lines, cols, allocate_ns, feed_ns, reflow_ns, Hash(*terminal))
+    terminal_close(*terminal)
+    return true
+}
+#program_export
+main :: () -> s32 {
+    for cols: 0..cast(s32)1 {
+        for size: 0..cast(s32)2 {
+            lines: s32 = ifx size == 0 then 24 else ifx size == 1 then 200 else 2000
+            if !Run(lines, ifx cols == 0 then 32 else 120) { return 1 }
+        }
+    }
+    return 0
+}

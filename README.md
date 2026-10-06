@@ -80,6 +80,19 @@ enabled only while the terminal owns keyboard focus. Call `terminal_poll` for
 owned children and `terminal_close` when removing a terminal to release its
 buffers and supervised child. Display and window lifecycle stay with the host.
 
+For complete captured output in a detached state, `terminal_feed_capture`
+normalizes LF to CRLF and can omit the final capture-pane delimiter. Start
+with `terminal_init` and `terminal_resize`. Plain text, Unicode and SGR use
+batched history transfers on an empty screen; cursor controls, other escape
+sequences and existing screen content use the ordinary parser. Owned PTYs
+are rejected. The call preserves styles, soft wrapping and the configured
+logical history limit, and ordinary `terminal_feed` can continue afterward.
+It reserves at most one screen minus one row beyond the history limit while
+batching. `make terminal-capture-test` checks parity before and after later
+input and resize; `make terminal-capture-plan9-test` runs the same fixture in
+the native guest. `sh scripts/capture-replay.sh` measures allocation, capture
+parsing and reflow separately in C/C++ from source or saved IR.
+
 For a remote or otherwise host-managed process, set the pane's `write_input`
 callback and `input_userdata`; keyboard input is encoded by Terminal and handed to
 that callback instead of a local PTY. Hosts that capture input themselves can

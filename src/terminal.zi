@@ -226,11 +226,15 @@ Terminal :: struct {
     sixel_count: s32
     sixel_capacity: s32
     sixel_total_pixels: s32
+    // Scoped to terminal_feed_capture; ordinary PTY feeding never batches.
+    capture_batch: bool
+    capture_scrolled: bool
 }
 SearchMatch :: struct { row: s32; col: s32; length: s32; }
 
 #load "engine/native.zi";
 #load "engine/csi.zi";
+#load "engine/capture.zi";
 #load "engine/dcs.zi";
 #load "engine/keys.zi";
 #load "engine/modes.zi";

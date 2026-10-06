@@ -10,6 +10,7 @@ case "$suite" in
     pty) module=terminal_pty_plan9_test ;;
     engine) module=terminal_engine_test ;;
     feed) module=terminal_feed_probe ;;
+    capture) module=terminal_capture_test ;;
     config) module=terminal_config_test ;;
     session) module=terminal_session_test ;;
     launch) module=terminal_launch_options_test ;;

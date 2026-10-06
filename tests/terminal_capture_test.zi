@@ -1,0 +1,145 @@
+// Compare the complete emulator state to the original normalized replay,
+// including history rings, blank styles, delayed wrapping and later feeds.
+#import "terminal";
+Text :: #import "std/byte_text_linux";
+#import "std/text"
+
+Bytes :: (value: string) -> *u8 {
+    descriptor := cast(*Text.TextDescriptor)(*value)
+    return descriptor.data
+}
+Feed :: (terminal: *Terminal, value: string) {
+    terminal_feed(terminal, cast(*void)Bytes(value), cast(s32)value.count)
+}
+Replay :: (terminal: *Terminal, value: string, trim: bool) {
+    end := cast(s32)value.count
+    if trim && end > 0 && value[end - 1] == 10 { end -= 1 }
+    start: s32
+    for index: 0..end - 1 {
+        if value[index] == 10 { Feed(terminal, value[start:index]); Feed(terminal, "\r\n"); start = index + 1 }
+    }
+    Feed(terminal, value[start:end])
+}
+SameCell :: (a: *Cell, b: *Cell) -> bool {
+    return a != null && b != null && a.codepoint == b.codepoint && a.combining == b.combining &&
+        a.fg == b.fg && a.bg == b.bg && a.underline == b.underline &&
+        a.hyperlink == b.hyperlink && a.style == b.style
+}
+Same :: (a: *Terminal, b: *Terminal) -> bool {
+    if a.cols != b.cols || a.rows != b.rows || a.cursor_col != b.cursor_col ||
+        a.cursor_row != b.cursor_row || a.saved_col != b.saved_col || a.saved_row != b.saved_row ||
+        a.scroll_top != b.scroll_top || a.scroll_bottom != b.scroll_bottom ||
+        a.parser_state != b.parser_state || a.utf8_remaining != b.utf8_remaining ||
+        a.utf8_codepoint != b.utf8_codepoint || a.alternate_screen != b.alternate_screen ||
+        a.current_fg != b.current_fg || a.current_bg != b.current_bg ||
+        a.current_underline != b.current_underline || a.current_style != b.current_style ||
+        a.current_hyperlink != b.current_hyperlink || a.cursor_visible != b.cursor_visible ||
+        a.bell_pending != b.bell_pending || a.scrollback_count != b.scrollback_count ||
+        a.capture_batch || a.capture_scrolled || b.capture_batch || b.capture_scrolled { return false }
+    for row: 0..a.rows - 1 {
+        if a.main_wrapped[row] != b.main_wrapped[row] || a.alt_wrapped[row] != b.alt_wrapped[row] { return false }
+        for col: 0..a.cols - 1 {
+            index := row * a.cols + col
+            if !SameCell(*a.main_cells[index], *b.main_cells[index]) ||
+                !SameCell(*a.alt_cells[index], *b.alt_cells[index]) { return false }
+        }
+    }
+    for row: 0..terminal_visible_line_count(a) - 1 {
+        if terminal_visible_line_wrapped(a, row) != terminal_visible_line_wrapped(b, row) { return false }
+        for col: 0..a.cols - 1 {
+            if !SameCell(terminal_visible_cell(a, col, row), terminal_visible_cell(b, col, row)) {
+                print("Capture cell mismatch at row %, col %\n", row, col)
+                return false
+            }
+        }
+    }
+    return true
+}
+Check :: (value: string, cols: s32, rows: s32, limit: s32, trim: bool,
+wide: bool, used: bool = false) -> bool {
+    original: Terminal; capture: Terminal
+    terminal_init(*original); terminal_init(*capture)
+    terminal_resize(*original, cols, rows); terminal_resize(*capture, cols, rows)
+    terminal_set_scrollback_limit(*original, limit); terminal_set_scrollback_limit(*capture, limit)
+    terminal_set_ambiguous_width(*original, cast(s32)wide)
+    terminal_set_ambiguous_width(*capture, cast(s32)wide)
+    if used { Feed(*original, "previous screen\r\n"); Feed(*capture, "previous screen\r\n") }
+    Replay(*original, value, trim)
+    ok := terminal_feed_capture(*capture, cast(*void)Bytes(value), cast(s32)value.count, trim) &&
+        Same(*original, *capture)
+    // Continuing ordinary PTY-style feeds must still honor the configured
+    // history limit even when capture reserved additional physical slots.
+    if ok {
+        for line: 0..rows + terminal_clamp_int(limit, 1, 33) + 1 {
+            Feed(*original, "\x1b[48;5;123m\r\ncontinued é Á"); Feed(*capture, "\x1b[48;5;123m\r\ncontinued é Á")
+        }
+        ok = Same(*original, *capture)
+    }
+    if ok {
+        terminal_resize(*original, ifx cols == 8 then 120 else 8, 7)
+        terminal_resize(*capture, ifx cols == 8 then 120 else 8, 7)
+        ok = Same(*original, *capture)
+    }
+    terminal_close(*original); terminal_close(*capture)
+    return ok
+}
+Corpus :: (kind: s32, rows: s32) -> string {
+    buffer: Vec(u8)
+    for row: 0..rows - 1 {
+        if kind == 0 { BuilderPrint(*buffer, "ROW % abcdefghijklmnop café Ω 0123456789\n", row) }
+        else if kind == 1 { BuilderPrint(*buffer, "\x1b[48;5;%m\x1b[38;2;10;20;%mÁ 日本語 \tX\bY\rprogress % abcdefghijklmnopqrstuvwxyz0123456789\n", row % 255, row % 200, row) }
+        else if kind == 2 { BuilderPrint(*buffer, "\x1b[1;3;4:3;58:2::10:20:30mabcdefghijklmnopqrstuvwxyz0123456789\x1b[0m") }
+        else if kind == 3 { BuilderPrint(*buffer, "\x1b[48;5;%m\ńwide 測試́ ", row % 255) }
+        else if kind == 4 { BuilderPrint(*buffer, "\x1b[48;5;%m\n\n\n", row % 255) }
+        else { BuilderPrint(*buffer, "line % \a\r\n", row) }
+    }
+    return BuilderFinish(buffer)
+}
+#program_export
+main :: () -> s32 {
+    for kind: 0..cast(s32)5 {
+        for size: 0..cast(s32)3 {
+            lines: s32 = ifx size == 0 then 9 else ifx size == 1 then 33 else ifx size == 2 then 200 else 2100
+            value := Corpus(kind, lines)
+            for dimensions: 0..cast(s32)2 {
+                cols: s32 = ifx dimensions == 0 then 8 else ifx dimensions == 1 then 80 else 240
+                rows: s32 = ifx dimensions == 0 then 4 else ifx dimensions == 1 then 24 else 120
+                for history: 0..cast(s32)2 {
+                    limit: s32 = ifx history == 0 then 1 else ifx history == 1 then 31 else 2000
+                    if !Check(value, cols, rows, limit, size % 2 == 0, dimensions == 1) {
+                        print("Capture parity failed: corpus %, lines %, cols %, rows %, history %\n", kind, lines, cols, rows, limit)
+                        return 1
+                    }
+                }
+            }
+        }
+    }
+    fallback := "\x1b[?1049halternate\x1b[H\x1b[2Jscreen\x1b[?1049l\x1b]8;;https://example.org\x1b\\link\x1b]8;;\x1b\\\x1b]0;title\a\x1b(0lqk\x1b(B\x1b[2;3Hcursor\x1b[2;3rmargin\n\x1b[r\x1bPignored\x1b\\\x1b[4hinsert\x1b[4l"
+    invalid_bytes: [20]u8 = .{192, 155, 32, 226, 65, 32, 237, 160, 128, 32,
+        244, 144, 128, 128, 32, 194, 133, 32, 155, 32}
+    invalid_buffer: Vec(u8)
+    BuilderPrint(*invalid_buffer, "%", Text.TextFromBytes(invalid_bytes[:]))
+    BuilderPrint(*invalid_buffer, "\x1b[31")
+    invalid := BuilderFinish(invalid_buffer)
+    prefix := Corpus(1, 200)
+    for ending: 0..cast(s32)1 {
+        buffer: Vec(u8)
+        BuilderPrint(*buffer, "%", prefix)
+        BuilderPrint(*buffer, "%", ifx ending == 0 then fallback else invalid)
+        value := BuilderFinish(buffer)
+        if !Check(value, 80, 24, 31, false, false) || !Check(value, 80, 24, 31, true, false, true) {
+            print("Capture fallback parity failed: %\n", ending); return 1
+        }
+    }
+    detached: Terminal; terminal_init(*detached); terminal_resize(*detached, 80, 24)
+    if !terminal_feed_capture(*detached, null, 0, true) ||
+        terminal_feed_capture(*detached, null, 1, false) ||
+        terminal_feed_capture(*detached, null, -1, false) { return 1 }
+    detached.fd = 123
+    rejected := !terminal_feed_capture(*detached, cast(*void)Bytes("safe"), 4, false)
+    detached.fd = -1
+    if !rejected || detached.cursor_col != 0 || detached.cursor_row != 0 { return 1 }
+    terminal_close(*detached)
+    print("Captured screens match normalized replay, later feeds and reflow across Unicode, SGR, wrapping, history limits and control fallbacks\n")
+    return 0
+}

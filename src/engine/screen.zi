@@ -284,7 +284,10 @@ row: *Cell, wrapped: s32) {
     terminal.scrollback_head =
     (terminal.scrollback_head + 1) %
     terminal.scrollback_capacity
-    if terminal.scrollback_count < terminal.scrollback_capacity {
+    limit := terminal.scrollback_capacity
+    if !terminal.capture_batch && terminal.scrollback_limit > 0 &&
+       terminal.scrollback_limit < limit { limit = terminal.scrollback_limit }
+    if terminal.scrollback_count < limit {
         terminal.scrollback_count += 1
     }
 }

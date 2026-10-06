@@ -1,0 +1,168 @@
+// Captured screens contain complete rows rather than a live PTY stream.
+// Preserve the ordinary parser, but evacuate completed rows in batches so
+// each newline does not move the entire main screen. Other controls retain
+// the ordinary screen/mode/escape behavior.
+#scope_module
+
+capture_text_only :: (data: *u8, count: s32) -> bool {
+    index: s32
+    while index < count {
+        byte := data[index]
+        if byte == 27 {
+            index += 1
+            if index >= count || data[index] != 91 { return false }
+            index += 1
+            while index < count && ((data[index] >= 48 && data[index] <= 57) ||
+                data[index] == 59 || data[index] == 58) { index += 1 }
+            if index >= count || data[index] != 109 { return false }
+        } else if byte < 32 {
+            if byte != 7 && byte != 8 && byte != 9 && byte != 10 && byte != 13 { return false }
+        } else if byte >= 127 {
+            // Reject incomplete, noncanonical and C1 encodings before
+            // mutation. The full parser owns their replacement semantics.
+            remaining: s32; codepoint: u32; minimum: u32
+            if byte >= 194 && byte <= 223 { remaining = 1; codepoint = byte & 31; minimum = 128 }
+            else if byte >= 224 && byte <= 239 { remaining = 2; codepoint = byte & 15; minimum = 2048 }
+            else if byte >= 240 && byte <= 244 { remaining = 3; codepoint = byte & 7; minimum = 65536 }
+            else { return false }
+            for part: 1..remaining {
+                index += 1
+                if index >= count || data[index] < 128 || data[index] > 191 { return false }
+                codepoint = codepoint * 64 + cast(u32)(data[index] & 63)
+            }
+            if codepoint < minimum || codepoint > 0x10ffff ||
+                (codepoint >= 0xd800 && codepoint <= 0xdfff) ||
+                (codepoint >= 0x80 && codepoint <= 0x9f) { return false }
+        }
+        index += 1
+    }
+    return true
+}
+
+capture_empty_screen :: (terminal: *Terminal) -> bool {
+    if terminal.main_cells == null || terminal.main_wrapped == null ||
+        terminal.cols < 8 || terminal.rows < 4 || terminal.cursor_col != 0 ||
+        terminal.cursor_row != 0 || terminal.scrollback_count != 0 ||
+        terminal.scrollback_head != 0 || terminal.alternate_screen != 0 ||
+        terminal.scroll_top != 0 || terminal.scroll_bottom != terminal.rows - 1 ||
+        terminal.parser_state != PARSER_TEXT || terminal.utf8_remaining != 0 ||
+        terminal.insert_mode != 0 || terminal.autowrap == 0 ||
+        terminal.g0_charset != TERMINAL_CHARSET_US_ASCII ||
+        terminal.g1_charset != TERMINAL_CHARSET_US_ASCII || terminal.sixel_count != 0 {
+        return false
+    }
+    blank := terminal_blank_cell(terminal)
+    for row: 0..terminal.rows - 1 {
+        if terminal.main_wrapped[row] != 0 { return false }
+        for col: 0..terminal.cols - 1 {
+            cell := terminal.main_cells[row * terminal.cols + col]
+            if cell.codepoint != blank.codepoint || cell.combining != blank.combining ||
+                cell.fg != blank.fg || cell.bg != blank.bg || cell.underline != blank.underline ||
+                cell.hyperlink != blank.hyperlink || cell.style != blank.style { return false }
+        }
+    }
+    return true
+}
+
+capture_reserve_history :: (terminal: *Terminal) -> bool {
+    // The extra rows temporarily retain the part of the final screen that
+    // precedes the current batch. They are removed from logical history on
+    // return. Reserve only on the first overflow of the initial screen.
+    limit := ifx terminal.scrollback_limit > 0 then terminal.scrollback_limit else SCROLLBACK_LIMIT
+    if limit > 2147483647 - terminal.rows { return false }
+    capacity := limit + terminal.rows - 1
+    if terminal.scrollback_capacity >= capacity { return true }
+    if terminal.scrollback_count != 0 || terminal.scrollback_head != 0 { return false }
+    cells := cast(*Cell)realloc(cast(*void)terminal.scrollback,
+        cast(usize)capacity * cast(usize)terminal.cols * size_of(Cell))
+    if cells == null { return false }
+    terminal.scrollback = cells
+    wrapped := cast(*u8)realloc(cast(*void)terminal.scrollback_wrapped, cast(usize)capacity)
+    if wrapped == null { return false }
+    terminal.scrollback_wrapped = wrapped
+    terminal.scrollback_capacity = capacity
+    return true
+}
+
+capture_line_feed :: (terminal: *Terminal) -> bool {
+    if terminal.cursor_row == terminal.rows - 1 {
+        if !terminal.capture_scrolled && !capture_reserve_history(terminal) {
+            terminal.capture_batch = false
+            return false
+        }
+        for row: 0..terminal.rows - 2 {
+            terminal_append_scrollback(terminal, *terminal.main_cells[row * terminal.cols],
+                terminal.main_wrapped[row])
+        }
+        // Keep the immediately preceding row for combining marks after a
+        // hard newline or delayed wrap, just as the ordinary parser does.
+        memcpy(cast(*void)terminal.main_cells,
+            cast(*void)(*terminal.main_cells[(terminal.rows - 1) * terminal.cols]),
+            cast(usize)terminal.cols * size_of(Cell))
+        terminal.main_wrapped[0] = terminal.main_wrapped[terminal.rows - 1]
+        terminal.cursor_row = 1
+        terminal.capture_scrolled = true
+    } else { terminal.cursor_row += 1 }
+    // The first screen keeps its original blank attributes. After it has
+    // scrolled, every newly entered row uses the current SGR attributes.
+    if terminal.capture_scrolled { terminal_clear_row(terminal, terminal.cursor_row) }
+    return true
+}
+
+capture_finish :: (terminal: *Terminal) {
+    if terminal.capture_scrolled {
+        prefix := terminal.rows - 1 - terminal.cursor_row
+        if prefix > 0 {
+            memmove(cast(*void)(*terminal.main_cells[prefix * terminal.cols]),
+                cast(*void)terminal.main_cells,
+                cast(usize)(terminal.cursor_row + 1) * cast(usize)terminal.cols * size_of(Cell))
+            memmove(cast(*void)(*terminal.main_wrapped[prefix]),
+                cast(*void)terminal.main_wrapped, cast(usize)(terminal.cursor_row + 1))
+            for row: 0..prefix - 1 {
+                physical := (terminal.scrollback_head - prefix + row +
+                    terminal.scrollback_capacity) % terminal.scrollback_capacity
+                memcpy(cast(*void)(*terminal.main_cells[row * terminal.cols]),
+                    cast(*void)(*terminal.scrollback[physical * terminal.cols]),
+                    cast(usize)terminal.cols * size_of(Cell))
+                terminal.main_wrapped[row] = terminal.scrollback_wrapped[physical]
+            }
+            terminal.scrollback_head = (terminal.scrollback_head - prefix +
+                terminal.scrollback_capacity) % terminal.scrollback_capacity
+            terminal.scrollback_count -= prefix
+            terminal.cursor_row += prefix
+        }
+        limit := ifx terminal.scrollback_limit > 0 then terminal.scrollback_limit else SCROLLBACK_LIMIT
+        if terminal.scrollback_count > limit { terminal.scrollback_count = limit }
+    }
+    terminal.capture_batch = false
+    terminal.capture_scrolled = false
+}
+
+#scope_export
+#program_export
+terminal_feed_capture :: (terminal: *Terminal, data: *void, count: s32,
+trim_final_linefeed: bool) -> bool {
+    // Detached views only. This must never send responses or manage a PTY.
+    if terminal == null || count < 0 || (count > 0 && data == null) ||
+        terminal.fd >= 0 || terminal.running != 0 || terminal.pid > 0 ||
+        terminal.capture_batch { return false }
+    bytes := cast(*u8)data
+    if trim_final_linefeed && count > 0 && bytes[count - 1] == 10 { count -= 1 }
+    // Short screens rarely scroll and do not repay a second validation
+    // pass. Their original parsing path already avoids history movement.
+    terminal.capture_batch = terminal.cols >= 8 && terminal.cols <= MAX_COLS &&
+        terminal.rows >= 4 && terminal.rows <= MAX_ROWS &&
+        count > terminal.cols * terminal.rows &&
+        capture_empty_screen(terminal) && capture_text_only(bytes, count)
+    start: s32
+    for index: 0..count - 1 {
+        if bytes[index] == 10 {
+            if index > start { terminal_feed(terminal, cast(*void)(*bytes[start]), index - start) }
+            terminal_feed(terminal, cast(*void)RawBytes("\r\n"), 2)
+            start = index + 1
+        }
+    }
+    if count > start { terminal_feed(terminal, cast(*void)(*bytes[start]), count - start) }
+    capture_finish(terminal)
+    return true
+}
