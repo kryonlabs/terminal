@@ -1,0 +1,4 @@
+FeedTest :: #import "terminal_feed_test";
+
+#program_export
+main :: () -> s32 { return FeedTest.CheckChunks() }

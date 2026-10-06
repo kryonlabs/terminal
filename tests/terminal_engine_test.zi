@@ -3,6 +3,7 @@
 ClipboardHost :: #import "terminal_clipboard_host";
 Clipboard :: #import "terminal_clipboard";
 PaneClipboard :: #import "terminal_pane_clipboard";
+FeedTest :: #import "terminal_feed_test";
 Text :: #import "std/byte_text_linux";
 Number :: #import "std/number_text";
 
@@ -307,6 +308,13 @@ WaitForLine :: (terminal: *Terminal, expected: string) -> bool {
         for row: 0..terminal.rows - 1 { if Line(terminal, row, expected) { return true } }
         Pause(10)
     }
+    print("Waiting for %, cursor %,%, newline mode %\n", expected,
+        terminal.cursor_col, terminal.cursor_row, terminal.newline_mode)
+    output: [2048]u8
+    for row: 0..terminal.rows - 1 {
+        terminal_line(terminal, row, *output[0], cast(s32)output.count)
+        print("row %: [%]\n", row, Text.TextFromCString(*output[0]))
+    }
     return false
 }
 
@@ -427,6 +435,7 @@ main :: () -> s32 {
     if result == 0 { result = Boundaries() }
     if result == 0 { result = OSCAndGraphics() }
     if result == 0 { result = ReportsAndInput() }
+    if result == 0 && FeedTest.CheckChunks() != 0 { result = 70 }
     if result == 0 { result = ChildProcess() }
     if result != 0 { print("Terminal engine failure %\n", result) }
     else { print("Terminal engine behavior passed\n") }

@@ -1,0 +1,76 @@
+// Bulk transport chunks must match the parser's byte-at-a-time semantics.
+#import "terminal";
+Text :: #import "std/byte_text_linux";
+
+Bytes :: (text: string) -> *u8 {
+    descriptor := cast(*Text.TextDescriptor)(*text)
+    return descriptor.data
+}
+
+SameCell :: (a: *Cell, b: *Cell) -> bool {
+    return a != null && b != null && a.codepoint == b.codepoint &&
+        a.combining == b.combining && a.fg == b.fg && a.bg == b.bg &&
+        a.underline == b.underline && a.hyperlink == b.hyperlink && a.style == b.style
+}
+
+Same :: (a: *Terminal, b: *Terminal) -> bool {
+    if a.cursor_col != b.cursor_col || a.cursor_row != b.cursor_row ||
+        a.parser_state != b.parser_state || a.utf8_remaining != b.utf8_remaining ||
+        a.utf8_codepoint != b.utf8_codepoint || a.alternate_screen != b.alternate_screen ||
+        a.scrollback_count != b.scrollback_count { return false }
+    for row: 0..a.rows - 1 {
+        if a.main_wrapped[row] != b.main_wrapped[row] ||
+            a.alt_wrapped[row] != b.alt_wrapped[row] { return false }
+        for col: 0..a.cols - 1 {
+            index := row * a.cols + col
+            if !SameCell(*a.main_cells[index], *b.main_cells[index]) ||
+                !SameCell(*a.alt_cells[index], *b.alt_cells[index]) { return false }
+        }
+    }
+    for row: 0..terminal_visible_line_count(a) - 1 {
+        if terminal_visible_line_wrapped(a, row) != terminal_visible_line_wrapped(b, row) { return false }
+        for col: 0..a.cols - 1 {
+            if !SameCell(terminal_visible_cell(a, col, row), terminal_visible_cell(b, col, row)) { return false }
+        }
+    }
+    return true
+}
+
+Check :: (text: string, chunk: s32, cols: s32, rows: s32, wide: bool) -> bool {
+    bulk: Terminal; bytes: Terminal
+    terminal_init(*bulk); terminal_init(*bytes)
+    terminal_resize(*bulk, cols, rows); terminal_resize(*bytes, cols, rows)
+    terminal_set_ambiguous_width(*bulk, cast(s32)wide)
+    terminal_set_ambiguous_width(*bytes, cast(s32)wide)
+    data := Bytes(text); at: s32
+    result := true
+    while at < cast(s32)text.count {
+        end := at + chunk; if end > cast(s32)text.count { end = cast(s32)text.count }
+        terminal_feed(*bulk, cast(*void)(*data[at]), end - at)
+        for byte: at..end - 1 { terminal_feed(*bytes, cast(*void)(*data[byte]), 1) }
+        if !Same(*bulk, *bytes) { result = false; break }
+        at = end
+    }
+    terminal_close(*bulk); terminal_close(*bytes); return result
+}
+
+#program_export
+CheckChunks :: () -> s32 {
+    // Every split includes pending escape/UTF-8 states, margins, both screens,
+    // delayed wrap, insert mode, DEC charsets, and SGR/hyperlink cell metadata.
+    text := "0123456789abcdefghijklmnopqrstuvwxyz\r\nsecond row\r\nthird row\r\nfourth row\r\nfifth row\x1b[1;3;4;7;38;2;10;20;30;48;5;200mstyled ASCII\x1b[0m\x1b]8;;https://example.org\x1b\\linked ASCII\x1b]8;;\x1b\\café Ω Á 日本語\x1b[?7lABCDEFGHijklmnop\x1b[?7h\r\n\x1b[1;1H\x1b[4habcXYZ\x1b[4l\x1b[2;3r\x1b[?6hmargin text wraps and scrolls\x1b[?6l\x1b[r\x1b(0lqkxmj\x1b(B\x1b)0\x0elqkxmj\x0fplain again\tTAB\bZ\x1b[?1049halternate screen text\r\nnext line\x1b[?1049l\x1bPignored ASCII\x1b\\\x1b]0;title ASCII\a\x1b[2Jlast ASCII row"
+    invalid: [7]u8
+    invalid[0] = cast(u8)0xc3; invalid[1] = cast(u8)65; invalid[2] = cast(u8)66
+    invalid[3] = cast(u8)67; invalid[4] = cast(u8)0xe2; invalid[5] = cast(u8)0x18; invalid[6] = cast(u8)68
+    for cols: 8..cast(s32)17 {
+        for chunk: 1..cast(s32)67 {
+            if !Check(text, chunk, cols, 4, false) || !Check(text, chunk, cols, 7, true) ||
+                !Check(Text.TextFromBytes(invalid[:]), chunk, cols, 4, false) {
+                print("Terminal chunk parity failed at columns %, chunk %\n", cols, chunk)
+                return 1
+            }
+        }
+    }
+    print("Terminal chunks match byte parsing across Unicode, wrapping, modes and cell styles\n")
+    return 0
+}

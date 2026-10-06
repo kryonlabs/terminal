@@ -9,6 +9,7 @@ case "$suite" in
     protocol) module=terminal_clipboard_test ;;
     pty) module=terminal_pty_plan9_test ;;
     engine) module=terminal_engine_test ;;
+    feed) module=terminal_feed_probe ;;
     config) module=terminal_config_test ;;
     session) module=terminal_session_test ;;
     launch) module=terminal_launch_options_test ;;

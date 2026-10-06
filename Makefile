@@ -119,7 +119,7 @@ pty-test:
 pty-plan9-test:
 	sh tests/pane_plan9_test.sh pty
 
-.PHONY: terminal-test terminal-plan9-test terminal-native terminal-plan9-c config-test config-plan9-test
+.PHONY: terminal-test terminal-plan9-test terminal-feed-plan9-test terminal-native terminal-plan9-c config-test config-plan9-test
 config-test:
 	sh tests/config_test.sh
 
@@ -131,6 +131,9 @@ terminal-test:
 
 terminal-plan9-test:
 	sh tests/pane_plan9_test.sh engine
+
+terminal-feed-plan9-test:
+	sh tests/pane_plan9_test.sh feed
 
 terminal-native:
 	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY $(ZIRAN) build --project $(LOCK_FLAGS) \
