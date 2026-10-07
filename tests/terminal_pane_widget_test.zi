@@ -161,6 +161,71 @@ TestFixedPitch :: (session: Sessions.Session) -> bool {
     Engine.terminal_close(*terminal); return ok
 }
 
+PlainPaint :: struct {
+    kind: s32; bounds: Rectangle; color: Color; x: s32; y: s32; font: s32
+    clip: Rectangle; text: [16]u8; length: s32
+}
+plain_expected: [128]PlainPaint;
+plain_runs: s32;
+plain_run_cells: s32;
+DrawFixedCells :: (session: Sessions.Session, node: s32, value: string,
+    row: Rectangle, first: s32, cell_width: s32, font: s32, color: Color, clip: Rectangle) {
+    plain_runs += 1; plain_run_cells += cast(s32)value.count
+    // Expand the optimized callback into the old host's glyph commands.
+    // Their complete plan must match the unbatched pane, including styles.
+    for at: 0..cast(s32)value.count - 1 {
+        if value[at] == cast(u8)32 { continue }
+        x := row.x + cast(float32)((first + at) * cell_width)
+        Paint.PaintClippedLabel(session, node, value[at:at + 1], cast(s32)x,
+            cast(s32)row.y, font, color, clip)
+    }
+}
+TestPlainRuns :: (session: Sessions.Session) -> bool {
+    bounds := Rectangle.{-2.375, 5.625, 280.0, 80.0}
+    terminal: Engine.Terminal; Engine.terminal_init(*terminal)
+    Engine.terminal_resize(*terminal, 40, 5)
+    Feed(*terminal, "plain ASCII \x1b[31mred run\x1b[0m\x1b[1mbold\x1b[0m界Á\r\n \x1b[4munder\x1b[0m\x1b[44mback\x1b[0m\x1b]8;;https://example.invalid\x1b\\link\x1b]8;;\x1b\\")
+    pane: Pane.TerminalPane
+    pane.key = cast(u64)5; pane.bounds = bounds; pane.font_size = 14
+    pane.terminal = *terminal; pane.cell_width = 7; pane.draw_text = DrawFixedText
+    fixed_cells = 0
+    Begin(session, bounds); unused Pane.DrawTerminalPane(session, pane)
+    count := Paint.PendingPaintCount(session); old_cells := fixed_cells
+    if count < 1 || count > 128 { return false }
+    for at: 0..count - 1 {
+        command := Paint.PendingPaintAt(session, at)
+        plain_expected[at].kind = command.kind; plain_expected[at].bounds = command.bounds
+        plain_expected[at].color = command.color; plain_expected[at].clip = command.clip
+        plain_expected[at].x = command.x; plain_expected[at].y = command.y
+        plain_expected[at].font = command.font
+        if command.value.count > 16 { return false }
+        plain_expected[at].length = cast(s32)command.value.count
+        for byte: 0..cast(s32)command.value.count - 1 { plain_expected[at].text[byte] = command.value[byte] }
+    }
+    if !Finish(session) { return false }
+    fixed_cells = 0; plain_runs = 0; plain_run_cells = 0
+    pane.draw_cells = DrawFixedCells
+    Begin(session, bounds); unused Pane.DrawTerminalPane(session, pane)
+    if plain_runs < 2 || plain_run_cells < 15 || fixed_cells < 10 || fixed_cells >= old_cells ||
+        Paint.PendingPaintCount(session) != count { return false }
+    for at: 0..count - 1 {
+        actual := Paint.PendingPaintAt(session, at); expected := plain_expected[at]
+        text := TextView(plain_expected[at].text[:plain_expected[at].length])
+        if actual.kind != expected.kind || actual.value != text ||
+            actual.x != expected.x || actual.y != expected.y || actual.font != expected.font ||
+            actual.bounds.x != expected.bounds.x || actual.bounds.y != expected.bounds.y ||
+            actual.bounds.width != expected.bounds.width || actual.bounds.height != expected.bounds.height ||
+            actual.color.r != expected.color.r || actual.color.g != expected.color.g ||
+            actual.color.b != expected.color.b || actual.color.a != expected.color.a ||
+            actual.clip.x != expected.clip.x || actual.clip.y != expected.clip.y ||
+            actual.clip.width != expected.clip.width || actual.clip.height != expected.clip.height {
+            print("Plain terminal run differs at paint % text [%] expected [%]\n", at, actual.value, text)
+            return false
+        }
+    }
+    ok := Finish(session); Engine.terminal_close(*terminal); return ok
+}
+
 #scope_export
 #program_export
 main :: () -> s32 {
@@ -168,6 +233,7 @@ main :: () -> s32 {
     if !TestGrid(session) { return 1 }
     if !TestMirror(session) { return 17 }
     if !TestFixedPitch(session) { return 18 }
+    if !TestPlainRuns(session) { return 19 }
     bounds := Rectangle.{0.0, 0.0, 68.0, 68.0}
     pane: Pane.TerminalPane
     pane.key = cast(u64)2; pane.bounds = bounds

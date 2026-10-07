@@ -5,7 +5,7 @@ Kinds :: #import "kryon/widget_kind";
 Input :: #import "kryon/tree_input";
 Paint :: #import "kryon/paint_queue";
 Fonts :: #import "kryon/font_metrics";
-Engine :: #import "terminal";
+using Engine :: #import "terminal";
 Keys :: #import "terminal_pane_keys";
 Keyboard :: #import "terminal_keyboard";
 Metrics :: #import "terminal_pane_metrics";
@@ -16,6 +16,9 @@ Numbers :: #import "std/number_text";
 
 TerminalPaneDrawTextFn :: #type (session: Sessions.Session, node: s32,
     value: string, bounds: Rectangle, font: s32, color: Color, clip: Rectangle) -> ();
+TerminalPaneDrawCellsFn :: #type (session: Sessions.Session, node: s32,
+    value: string, row: Rectangle, first: s32, cell_width: s32,
+    font: s32, color: Color, clip: Rectangle) -> ();
 
 TerminalPaneMetrics :: struct {
     cols: s32
@@ -41,6 +44,9 @@ TerminalPane :: struct {
     // Hosts may supply fixed-pitch rasterization with its matching advance.
     cell_width: s32
     draw_text: TerminalPaneDrawTextFn
+    // Hosts with fixed-pitch painting can batch plain ASCII cells. The row
+    // origin and first column preserve each cell's exact placement.
+    draw_cells: TerminalPaneDrawCellsFn
     scale: float32
     focused: bool
     handle_input: bool
@@ -242,6 +248,16 @@ DrawCell :: (session: Sessions.Session, node: s32, terminal: *Engine.Terminal,
     }
 }
 
+PlainCell :: (terminal: *Engine.Terminal, col: s32, row: s32) -> *Engine.Cell {
+    cell := Engine.terminal_visible_cell(terminal, col, row)
+    if cell == null || cell.codepoint < cast(u32)32 || cell.codepoint > cast(u32)126 ||
+        cell.combining != cast(u32)0 || cell.style != 0 ||
+        cell.bg != Engine.COLOR_DEFAULT || cell.hyperlink != 0 { return null }
+    next := Engine.terminal_visible_cell(terminal, col + 1, row)
+    if next != null && (next.style & Engine.STYLE_WIDE_CONT) != 0 { return null }
+    return cell
+}
+
 #scope_export
 // Embedded panes and the application use the same Terminal state and parser.
 // Input and paint belong to an explicit Kryon frame rather than global polling.
@@ -286,6 +302,29 @@ DrawTerminalPane :: (session: Sessions.Session, pane: TerminalPane) -> TerminalP
     while row < terminal.rows && row < measured.rows {
         col: s32
         while col < terminal.cols && col < measured.cols {
+            if pane.draw_cells != null && pane.cell_width > 0 {
+                plain := PlainCell(terminal, col, first + row)
+                if plain != null {
+                    bytes: [MAX_COLS]u8; count: s32; visible: bool
+                    while col + count < terminal.cols && col + count < measured.cols {
+                        current := PlainCell(terminal, col + count, first + row)
+                        if current == null || current.fg != plain.fg { break }
+                        bytes[count] = cast(u8)current.codepoint
+                        if current.codepoint != cast(u32)32 { visible = true }
+                        count += 1
+                    }
+                    if count > 1 {
+                        if visible {
+                            bounds := measured.content
+                            bounds.y += cast(float32)(row * measured.line_height)
+                            bounds.height = cast(float32)measured.line_height
+                            pane.draw_cells(session, result.node, TextView(bytes[:count]), bounds,
+                                col, measured.cell_width, font, CellColor(terminal, plain.fg, colors.text), measured.content)
+                        }
+                        col += count; continue
+                    }
+                }
+            }
             cell := Engine.terminal_visible_cell(terminal, col, first + row)
             if cell != null && (cell.style & Engine.STYLE_WIDE_CONT) == 0 {
                 next := Engine.terminal_visible_cell(terminal, col + 1, first + row)
