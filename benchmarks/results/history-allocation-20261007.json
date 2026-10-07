@@ -1,0 +1,232 @@
+{
+  "scope": "Native C detached capture reset, feed and resize/reflow using the maintained benchmark; identical generated files except clearing unused history capacity. No UI/transport/display.",
+  "order": [
+    "before",
+    "after",
+    "after",
+    "before"
+  ],
+  "samples_per_case_per_run": 250,
+  "summary": [
+    {
+      "lines": 24,
+      "cols": 32,
+      "metrics": {
+        "allocate_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.094613034,
+            "after": 0.006102688
+          },
+          "speedup": 15.503501735628626
+        },
+        "feed_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.002631824,
+            "after": 0.001837014
+          },
+          "speedup": 1.4326640951021603
+        },
+        "reflow_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.07133869400000001,
+            "after": 0.030104774
+          },
+          "speedup": 2.3696804367307327
+        }
+      },
+      "total_ms": {
+        "before": 0.168583552,
+        "after": 0.038044476
+      },
+      "total_speedup": 4.431222866625893,
+      "cell_hash": "7208733800830057672"
+    },
+    {
+      "lines": 200,
+      "cols": 32,
+      "metrics": {
+        "allocate_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.053125922000000006,
+            "after": 0.0059203580000000006
+          },
+          "speedup": 8.973430660780986
+        },
+        "feed_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.039816616,
+            "after": 0.033461385999999996
+          },
+          "speedup": 1.1899272791629134
+        },
+        "reflow_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.036217176000000004,
+            "after": 0.014760104
+          },
+          "speedup": 2.453720922291605
+        }
+      },
+      "total_ms": {
+        "before": 0.129159714,
+        "after": 0.054141848
+      },
+      "total_speedup": 2.3855800784635206,
+      "cell_hash": "706004192172013684"
+    },
+    {
+      "lines": 2000,
+      "cols": 32,
+      "metrics": {
+        "allocate_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.064576258,
+            "after": 0.011268610000000002
+          },
+          "speedup": 5.730632083282675
+        },
+        "feed_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.385345206,
+            "after": 0.38562107
+          },
+          "speedup": 0.9992846241518908
+        },
+        "reflow_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.19609593399999997,
+            "after": 0.218398938
+          },
+          "speedup": 0.8978795217401652
+        }
+      },
+      "total_ms": {
+        "before": 0.646017398,
+        "after": 0.615288618
+      },
+      "total_speedup": 1.049942058248833,
+      "cell_hash": "4033926691799283433"
+    },
+    {
+      "lines": 24,
+      "cols": 120,
+      "metrics": {
+        "allocate_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.041645342,
+            "after": 0.005452338000000001
+          },
+          "speedup": 7.638070493795505
+        },
+        "feed_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.002137766,
+            "after": 0.001915264
+          },
+          "speedup": 1.116173018445499
+        },
+        "reflow_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.122223432,
+            "after": 0.060183988
+          },
+          "speedup": 2.0308297283323933
+        }
+      },
+      "total_ms": {
+        "before": 0.16600654,
+        "after": 0.06755159
+      },
+      "total_speedup": 2.4574779068856856,
+      "cell_hash": "17839152737342599496"
+    },
+    {
+      "lines": 200,
+      "cols": 120,
+      "metrics": {
+        "allocate_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.048357574,
+            "after": 0.006930214
+          },
+          "speedup": 6.97778943045626
+        },
+        "feed_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.039612945999999996,
+            "after": 0.030397858
+          },
+          "speedup": 1.303149254792887
+        },
+        "reflow_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.098014412,
+            "after": 0.029007992
+          },
+          "speedup": 3.3788761386861936
+        }
+      },
+      "total_ms": {
+        "before": 0.185984932,
+        "after": 0.066336064
+      },
+      "total_speedup": 2.8036775290134788,
+      "cell_hash": "9327316279147297076"
+    },
+    {
+      "lines": 2000,
+      "cols": 120,
+      "metrics": {
+        "allocate_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.08603406999999999,
+            "after": 0.012378092
+          },
+          "speedup": 6.950511435849725
+        },
+        "feed_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.365302118,
+            "after": 0.34239621
+          },
+          "speedup": 1.0668988362926097
+        },
+        "reflow_ns": {
+          "median_of_per_run_mean_ms": {
+            "before": 0.567679698,
+            "after": 0.473418868
+          },
+          "speedup": 1.1991066186234047
+        }
+      },
+      "total_ms": {
+        "before": 1.019015886,
+        "after": 0.82819317
+      },
+      "total_speedup": 1.2304084637645587,
+      "cell_hash": "9017681048097227929"
+    }
+  ],
+  "all_cell_hashes_match": true,
+  "binary_sha256": {
+    "before": "fd44eb2315940453e93d22ca5b2dd1e16104a2b7995cb9be618021eeccc67269",
+    "after": "cfe3ff8d0f9cf39477354f3bf8886e93ab6a4a70d4a409d2c88c157fc5293ead"
+  },
+  "date": "2026-10-07",
+  "baseline_commit": "c73e1236d2bc93e18c5006b8c6f39dd68d937528",
+  "change": "Allocate reserved history cells without clearing unused rows. Logical rows are written in full before becoming readable. Check element and byte sizes before allocation to avoid address-size overflow.",
+  "metric": "Median of two per-run mean phase times, with 250 repetitions per case in each run. Individual latency percentiles were not measured.",
+  "checks": [
+    "Engine behavior, history preservation on overflowing allocations, full capture parity and reflow parity in source/saved-IR C/C++ with MALLOC_PERTURB_=165",
+    "Portable cursor metadata in C/C++/Go and source/saved VM execution",
+    "Full capture parity in source/saved-IR native Plan 9 8c/8l in private QEMU",
+    "Native 32-bit allocation bounds passed before the separate child-input failure in the broader Plan 9 engine gate"
+  ],
+  "limitations": [
+    "The Plan 9 engine child-input gate returns failure 85 with both calloc and malloc history allocation; it is not counted as passed.",
+    "Isolated capture allocation/replay/reflow, not full Harmony input-to-pixel latency.",
+    "The long-history narrow-pane reflow phase was slower in this run; all cases improved for the combined measured phases.",
+    "RAM/CPU reductions outside this isolated timing experiment remain unmeasured.",
+    "Not yet deployed in Harmony."
+  ]
+}

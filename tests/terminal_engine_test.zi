@@ -396,6 +396,39 @@ OSCAndGraphics :: () -> s32 {
     return 0
 }
 
+AllocationBounds :: () -> s32 {
+    terminal: Terminal
+    terminal_init(*terminal)
+    defer { terminal_close(*terminal) }
+    terminal_set_scrollback_limit(*terminal, 3)
+    terminal_resize(*terminal, 8, 4)
+    Feed(*terminal, "a\r\nb\r\nc\r\nd\r\ne\r\nf")
+    cells := terminal.scrollback; wrapped := terminal.scrollback_wrapped
+    count := terminal.scrollback_count; head := terminal.scrollback_head
+    capacity := terminal.scrollback_capacity
+    // Reject a byte size that cannot fit usize on either 32-bit or 64-bit
+    // hosts before allocation, retaining the existing ring on failure.
+    terminal.cols = 2147483647; terminal.scrollback_limit = 2147483647
+    allocated := terminal_allocate_scrollback(*terminal)
+    terminal.cols = 8; terminal.scrollback_limit = 3
+    if allocated != 0 || terminal.scrollback != cells || terminal.scrollback_wrapped != wrapped ||
+        terminal.scrollback_count != count || terminal.scrollback_head != head ||
+        terminal.scrollback_capacity != capacity || !VisibleLine(*terminal, 0, "a") ||
+        !Line(*terminal, 0, "c") { return 71 }
+    if size_of(usize) == 4 {
+        // The largest configured history at the supported maximum width
+        // also exceeds 32-bit addressability without any malformed input.
+        terminal.cols = MAX_COLS; terminal.scrollback_limit = 1000000
+        allocated = terminal_allocate_scrollback(*terminal)
+        terminal.cols = 8; terminal.scrollback_limit = 3
+        if allocated != 0 || terminal.scrollback != cells ||
+            terminal.scrollback_count != count || !VisibleLine(*terminal, 0, "a") ||
+            !Line(*terminal, 0, "c") { return 72 }
+    }
+    print("Terminal allocation bounds preserve history on %-bit hosts\n", size_of(usize) * 8)
+    return 0
+}
+
 ReportsAndInput :: () -> s32 {
     if !Responses("\x1b[5n\x1b[2;3H\x1b[6n\x1b[?6n\x1b[c\x1b[>c",
         "\x1b[0n\x1b[2;3R\x1b[?2;3R\x1b[?1;2c\x1b[>0;0;0c") { return 61 }
@@ -435,6 +468,7 @@ main :: () -> s32 {
     if result == 0 { result = Boundaries() }
     if result == 0 { result = OSCAndGraphics() }
     if result == 0 { result = ReportsAndInput() }
+    if result == 0 { result = AllocationBounds() }
     if result == 0 && FeedTest.CheckChunks() != 0 { result = 70 }
     if result == 0 { result = ChildProcess() }
     if result != 0 { print("Terminal engine failure %\n", result) }

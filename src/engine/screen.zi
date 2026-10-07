@@ -169,7 +169,14 @@ terminal: *Terminal) -> s32 {
        terminal.scrollback_capacity == limit { return 1 }
     // Allocate both buffers before replacing either one. Preserve the newest
     // logical rows even when the old ring has wrapped or its limit shrinks.
-    scrollback: *Cell = cast(*Cell)calloc(cast(usize)limit * cast(usize)terminal.cols, size_of(Cell))
+    cells := cast(usize)limit * cast(usize)terminal.cols
+    if cells / cast(usize)terminal.cols != cast(usize)limit { return 0 }
+    bytes := cells * size_of(Cell)
+    if bytes / size_of(Cell) != cells { return 0 }
+    // Only logical history rows may be read. Each new row is copied in full
+    // before its count advances, so clearing unused capacity wastes work and
+    // touches pages that short histories never need, especially on rebuilds.
+    scrollback: *Cell = cast(*Cell)malloc(bytes)
     if scrollback == null { return 0 }
     wrapped: *u8 = cast(*u8)calloc(cast(usize)limit, 1)
     if wrapped == null { free(cast(*void)scrollback); return 0 }
