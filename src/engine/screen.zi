@@ -555,6 +555,28 @@ cell: Cell) {
 }
 
 #scope_module
+reflow_stream_append_cells :: (stream: *ReflowStream,
+cells: *Cell, count: s32) {
+    if stream == null || stream.terminal == null || stream.current == null ||
+        cells == null || count <= 0 || stream.terminal.cols <= 0 || stream.failed != 0 { return }
+    at: s32
+    while at < count && stream.failed == 0 {
+        // Keep delayed wrapping: a full row wraps only when another cell
+        // arrives. A hard newline can still finish that row without wrapping.
+        if stream.current_col >= stream.terminal.cols {
+            stream.current_wrapped = 1
+            reflow_stream_emit(stream)
+        }
+        take := stream.terminal.cols - stream.current_col
+        if take > count - at { take = count - at }
+        memcpy(cast(*void)(*stream.current[stream.current_col]),
+            cast(*void)(*cells[at]), cast(usize)take * size_of(Cell))
+        stream.current_col += take
+        at += take
+    }
+}
+
+#scope_module
 reflow_stream_finish_line :: (stream: *ReflowStream) {
     reflow_stream_emit(stream)
 }
@@ -651,13 +673,8 @@ new_cursor_col: *s32, new_cursor_row: *s32) -> s32 {
         old_scrollback_wrapped[physical] != 0 then 1 else 0)
         end: s32 = row_text_end(old_scrollback, old_cols,
         physical, soft)
-        col: s32 = 0
-
-        while col < end {
-            reflow_stream_append_cell(*stream,
-            old_scrollback[physical * old_cols + col])
-            col += 1
-        }
+        reflow_stream_append_cells(*stream,
+            *old_scrollback[physical * old_cols], end)
         if soft == 0 {
             reflow_stream_finish_line(*stream)
         }

@@ -1,0 +1,89 @@
+// Exercise the private stream against its original scalar append operation.
+// Both paths retain complete cells, delayed wraps and the bounded history ring.
+#load "../src/terminal.zi";
+
+SameCell :: (a: Cell, b: Cell) -> bool {
+    return a.codepoint == b.codepoint && a.combining == b.combining &&
+        a.fg == b.fg && a.bg == b.bg && a.underline == b.underline &&
+        a.hyperlink == b.hyperlink && a.style == b.style
+}
+SameStream :: (a: *ReflowStream, b: *ReflowStream, history: bool) -> bool {
+    if a.current_col != b.current_col || a.current_wrapped != b.current_wrapped ||
+        a.total_rows != b.total_rows || a.failed != b.failed { return false }
+    for col: 0..a.terminal.cols - 1 {
+        if !SameCell(a.current[col], b.current[col]) { return false }
+    }
+    recent := terminal_clamp_int(a.total_rows, 0, a.terminal.rows)
+    for row: 0..recent - 1 {
+        if a.recent_wrapped[row] != b.recent_wrapped[row] { return false }
+        for col: 0..a.terminal.cols - 1 {
+            index := row * a.terminal.cols + col
+            if !SameCell(a.recent[index], b.recent[index]) { return false }
+        }
+    }
+    if a.terminal.scrollback_count != b.terminal.scrollback_count ||
+        a.terminal.scrollback_head != b.terminal.scrollback_head { return false }
+    if history {
+        for row: 0..a.terminal.scrollback_count - 1 {
+            physical := (a.terminal.scrollback_head - a.terminal.scrollback_count + row +
+                a.terminal.scrollback_capacity) % a.terminal.scrollback_capacity
+            if a.terminal.scrollback_wrapped[physical] != b.terminal.scrollback_wrapped[physical] { return false }
+            for col: 0..a.terminal.cols - 1 {
+                index := physical * a.terminal.cols + col
+                if !SameCell(a.terminal.scrollback[index], b.terminal.scrollback[index]) { return false }
+            }
+        }
+    }
+    return true
+}
+Check :: (cols: s32, rows: s32, limit: s32) -> bool {
+    scalar: Terminal; spans: Terminal
+    terminal_init(*scalar); terminal_init(*spans)
+    terminal_set_scrollback_limit(*scalar, limit); terminal_set_scrollback_limit(*spans, limit)
+    terminal_resize(*scalar, cols, rows); terminal_resize(*spans, cols, rows)
+    defer { terminal_close(*scalar); terminal_close(*spans) }
+    a: ReflowStream; b: ReflowStream
+    if reflow_stream_init(*a, *scalar) == 0 { return false }
+    defer { reflow_stream_close(*a) }
+    if reflow_stream_init(*b, *spans) == 0 { return false }
+    defer { reflow_stream_close(*b) }
+    cells: [240]Cell
+    for step: 0..cast(s32)255 {
+        for col: 0..cast(s32)239 {
+            cells[col].codepoint = cast(u32)(ifx col % 5 == 0 then 0x4e00 + col else 32 + (col + step) % 95)
+            cells[col].combining = ifx col % 7 == 0 then cast(u32)0x301 else cast(u32)0
+            cells[col].fg = step % 256; cells[col].bg = (step + col) % 256
+            cells[col].underline = col % 16; cells[col].hyperlink = cast(u16)(col % 128)
+            cells[col].style = cast(u16)((step + col) % 1024)
+        }
+        count := ifx step % 8 == 0 then 0 else ifx step % 8 == 1 then cols else (step * 71) % 241
+        for col: 0..count - 1 { reflow_stream_append_cell(*a, cells[col]) }
+        reflow_stream_append_cells(*b, *cells[0], count)
+        if !SameStream(*a, *b, step % 17 == 0) { return false }
+        if step % 3 == 0 {
+            reflow_stream_finish_line(*a); reflow_stream_finish_line(*b)
+            if !SameStream(*a, *b, false) { return false }
+        }
+    }
+    reflow_stream_flush_partial(*a); reflow_stream_flush_partial(*b)
+    return SameStream(*a, *b, true)
+}
+#scope_export
+#program_export
+main :: () -> s32 {
+    columns: [5]s32 = .{8, 9, 31, 80, 240}
+    heights: [3]s32 = .{4, 7, 24}
+    limits: [3]s32 = .{1, 17, 67}
+    for width: 0..cast(s32)4 {
+        for height: 0..cast(s32)2 {
+            for history: 0..cast(s32)2 {
+                if !Check(columns[width], heights[height], limits[history]) {
+                    print("Reflow span differs from scalar cells: cols %, rows %, history %\n",
+                        columns[width], heights[height], limits[history]); return 1
+                }
+            }
+        }
+    }
+    print("45 reflow streams preserve every cell, delayed wrap and retained history across 256 span boundaries\n")
+    return 0
+}

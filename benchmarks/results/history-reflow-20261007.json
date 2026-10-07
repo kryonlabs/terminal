@@ -1,0 +1,100 @@
+{
+  "date": "2026-10-07",
+  "baseline_commit": "6e47532e1d2771d15231b5885bd4a2db92017d25",
+  "change": "Copy retained scrollback cells in contiguous spans while preserving delayed wrapping, every cell attribute and the existing bounded history ring. Main-screen cursor mapping retains scalar appends.",
+  "scope": "Isolated native C terminal resize and history reflow using the maintained capture_replay benchmark. Excludes replay, transport, UI and display. Same generated files except scalar versus contiguous history-cell transfers.",
+  "benchmark": "benchmarks/capture_replay.zi",
+  "order": [
+    "before",
+    "after",
+    "after",
+    "before"
+  ],
+  "compiler": "cc -std=c11 -O2; identical flags for both generated C fixtures",
+  "metric": "Median of two per-run mean resize/reflow times; 250 repetitions per case in each run. Individual operation latency percentiles were not measured.",
+  "all_cell_hashes_match": true,
+  "binary_sha256": {
+    "before": "04f19a0928cd8b374249476bb4c60b13425accf36041fd8de0771c0dc53da882",
+    "after": "68119fd729b8bdad242386a288730f5dc80764a57e1e7336f9808f4833f874df"
+  },
+  "cases": [
+    {
+      "lines": 24,
+      "columns": 32,
+      "repetitions_per_run": 250,
+      "median_of_per_run_mean_ms": {
+        "before": 0.045504934,
+        "after": 0.046406714
+      },
+      "speedup": 0.9805678979985525,
+      "cell_hash": "7208733800830057672"
+    },
+    {
+      "lines": 200,
+      "columns": 32,
+      "repetitions_per_run": 250,
+      "median_of_per_run_mean_ms": {
+        "before": 0.032514164,
+        "after": 0.029806892
+      },
+      "speedup": 1.0908270476505901,
+      "cell_hash": "706004192172013684"
+    },
+    {
+      "lines": 2000,
+      "columns": 32,
+      "repetitions_per_run": 250,
+      "median_of_per_run_mean_ms": {
+        "before": 0.213267702,
+        "after": 0.170424088
+      },
+      "speedup": 1.2513941221736213,
+      "cell_hash": "4033926691799283433"
+    },
+    {
+      "lines": 24,
+      "columns": 120,
+      "repetitions_per_run": 250,
+      "median_of_per_run_mean_ms": {
+        "before": 0.122625424,
+        "after": 0.116472586
+      },
+      "speedup": 1.0528264908619784,
+      "cell_hash": "17839152737342599496"
+    },
+    {
+      "lines": 200,
+      "columns": 120,
+      "repetitions_per_run": 250,
+      "median_of_per_run_mean_ms": {
+        "before": 0.089286646,
+        "after": 0.08256651200000001
+      },
+      "speedup": 1.0813905521405578,
+      "cell_hash": "9327316279147297076"
+    },
+    {
+      "lines": 2000,
+      "columns": 120,
+      "repetitions_per_run": 250,
+      "median_of_per_run_mean_ms": {
+        "before": 0.395104616,
+        "after": 0.339867724
+      },
+      "speedup": 1.1625246768063213,
+      "cell_hash": "9017681048097227929"
+    }
+  ],
+  "checks": [
+    "45 scalar/reference stream cases across 256 span boundaries each, in source and saved-IR C/C++ execution",
+    "Full capture replay parity in source and saved-IR C/C++: Unicode, attributes, wrap boundaries, history limits, later feeds and width changes",
+    "Cursor reflow and cursor metadata checks in C/C++; portable metadata also in Go and source/saved VM execution",
+    "Full capture replay parity in source and saved-IR native Plan 9 8c/8l execution in private QEMU"
+  ],
+  "limits": [
+    "Isolated resize/reflow results, not full Harmony interaction latency.",
+    "The 24-line, 32-column case was approximately 2% slower; no speedup claimed for that case.",
+    "No additional buffers or history limits were introduced; RAM/CPU reduction and other platform performance have not been measured.",
+    "Not yet deployed in Harmony."
+  ]
+}
