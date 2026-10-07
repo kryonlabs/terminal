@@ -4,6 +4,9 @@
 Text :: #import "std/byte_text_linux";
 #import "std/text"
 
+libc :: #system_library "c";
+FreeOwnedCaptureText :: (memory: *void) #foreign libc "free";
+Release :: (value: string) { FreeOwnedCaptureText(cast(*void)Bytes(value)) }
 Bytes :: (value: string) -> *u8 {
     descriptor := cast(*Text.TextDescriptor)(*value)
     return descriptor.data
@@ -101,6 +104,7 @@ main :: () -> s32 {
         for size: 0..cast(s32)3 {
             lines: s32 = ifx size == 0 then 9 else ifx size == 1 then 33 else ifx size == 2 then 200 else 2100
             value := Corpus(kind, lines)
+            defer { Release(value) }
             for dimensions: 0..cast(s32)2 {
                 cols: s32 = ifx dimensions == 0 then 8 else ifx dimensions == 1 then 80 else 240
                 rows: s32 = ifx dimensions == 0 then 4 else ifx dimensions == 1 then 24 else 120
@@ -121,14 +125,37 @@ main :: () -> s32 {
     BuilderPrint(*invalid_buffer, "%", Text.TextFromBytes(invalid_bytes[:]))
     BuilderPrint(*invalid_buffer, "\x1b[31")
     invalid := BuilderFinish(invalid_buffer)
+    defer { Release(invalid) }
     prefix := Corpus(1, 200)
+    defer { Release(prefix) }
     for ending: 0..cast(s32)1 {
         buffer: Vec(u8)
         BuilderPrint(*buffer, "%", prefix)
         BuilderPrint(*buffer, "%", ifx ending == 0 then fallback else invalid)
         value := BuilderFinish(buffer)
+        defer { Release(value) }
         if !Check(value, 80, 24, 31, false, false) || !Check(value, 80, 24, 31, true, false, true) {
             print("Capture fallback parity failed: %\n", ending); return 1
+        }
+    }
+    // Batching can end after already replayed rows. Restore the ordinary
+    // screen before unsupported controls, including partially filled soft
+    // rows, saved cursors, charset changes and split/invalid UTF-8.
+    endings: [8]string = .{"\x1b[Hoverwrite", "\x1b[2Jclear", "\x1b[2;3rmargin\nnext\x1b[r",
+        "\x1b7saved\x1b8restored", "\x1b(0lqk\x1b(B", "\x1b[?1049halt\nnext\x1b[?1049l",
+        "\x1b[38;5;\n31mcontinued", invalid}
+    for lead: 0..cast(s32)2 {
+        for ending: 0..cast(s32)7 {
+            buffer: Vec(u8)
+            BuilderPrint(*buffer, "%", prefix)
+            BuilderPrint(*buffer, "%", ifx lead == 0 then "partial Á" else ifx lead == 1 then
+                "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz" else "\ń")
+            BuilderPrint(*buffer, "%", endings[ending])
+            value := BuilderFinish(buffer)
+            defer { Release(value) }
+            if !Check(value, 80, 24, 31, false, false) || !Check(value, 8, 4, 1, true, true) {
+                print("Capture batch transition parity failed: lead %, ending %\n", lead, ending); return 1
+            }
         }
     }
     detached: Terminal; terminal_init(*detached); terminal_resize(*detached, 80, 24)

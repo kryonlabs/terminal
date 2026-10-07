@@ -4,19 +4,24 @@
 // the ordinary screen/mode/escape behavior.
 #scope_module
 
-capture_text_only :: (data: *u8, count: s32) -> bool {
+// Locate the next row boundary while validating only the text about to be
+// replayed. An unsupported control ends batching before it touches the
+// temporarily evacuated screen; the ordinary parser receives it unchanged.
+capture_text_row :: (data: *u8, count: s32) -> s32 {
     index: s32
     while index < count {
         byte := data[index]
+        if byte == 10 { return index }
+        first := index
         if byte == 27 {
             index += 1
-            if index >= count || data[index] != 91 { return false }
+            if index >= count || data[index] != 91 { return first }
             index += 1
             while index < count && ((data[index] >= 48 && data[index] <= 57) ||
                 data[index] == 59 || data[index] == 58) { index += 1 }
-            if index >= count || data[index] != 109 { return false }
+            if index >= count || data[index] != 109 { return first }
         } else if byte < 32 {
-            if byte != 7 && byte != 8 && byte != 9 && byte != 10 && byte != 13 { return false }
+            if byte != 7 && byte != 8 && byte != 9 && byte != 13 { return first }
         } else if byte >= 127 {
             // Reject incomplete, noncanonical and C1 encodings before
             // mutation. The full parser owns their replacement semantics.
@@ -24,19 +29,19 @@ capture_text_only :: (data: *u8, count: s32) -> bool {
             if byte >= 194 && byte <= 223 { remaining = 1; codepoint = byte & 31; minimum = 128 }
             else if byte >= 224 && byte <= 239 { remaining = 2; codepoint = byte & 15; minimum = 2048 }
             else if byte >= 240 && byte <= 244 { remaining = 3; codepoint = byte & 7; minimum = 65536 }
-            else { return false }
+            else { return first }
             for part: 1..remaining {
                 index += 1
-                if index >= count || data[index] < 128 || data[index] > 191 { return false }
+                if index >= count || data[index] < 128 || data[index] > 191 { return first }
                 codepoint = codepoint * 64 + cast(u32)(data[index] & 63)
             }
             if codepoint < minimum || codepoint > 0x10ffff ||
                 (codepoint >= 0xd800 && codepoint <= 0xdfff) ||
-                (codepoint >= 0x80 && codepoint <= 0x9f) { return false }
+                (codepoint >= 0x80 && codepoint <= 0x9f) { return first }
         }
         index += 1
     }
-    return true
+    return index
 }
 
 capture_empty_screen :: (terminal: *Terminal) -> bool {
@@ -153,14 +158,27 @@ trim_final_linefeed: bool) -> bool {
     terminal.capture_batch = terminal.cols >= 8 && terminal.cols <= MAX_COLS &&
         terminal.rows >= 4 && terminal.rows <= MAX_ROWS &&
         count > terminal.cols * terminal.rows &&
-        capture_empty_screen(terminal) && capture_text_only(bytes, count)
-    start: s32
-    for index: 0..count - 1 {
+        capture_empty_screen(terminal)
+    start: s32; index: s32
+    while index < count {
+        if terminal.capture_batch {
+            index += capture_text_row(*bytes[index], count - index)
+            if index == count { break }
+            if bytes[index] != 10 {
+                if index > start { terminal_feed(terminal, cast(*void)(*bytes[start]), index - start) }
+                capture_finish(terminal)
+                start = index
+                // From this byte onward, preserve the existing full parser
+                // path and newline normalization, including incomplete UTF-8
+                // and escapes that span the captured row boundary.
+            }
+        }
         if bytes[index] == 10 {
             if index > start { terminal_feed(terminal, cast(*void)(*bytes[start]), index - start) }
             terminal_feed(terminal, cast(*void)RawBytes("\r\n"), 2)
             start = index + 1
         }
+        index += 1
     }
     if count > start { terminal_feed(terminal, cast(*void)(*bytes[start]), count - start) }
     capture_finish(terminal)

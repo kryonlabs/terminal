@@ -65,10 +65,21 @@ cells: *Cell) {
     if terminal == null || cells == null { return }
     blank: Cell = terminal_blank_cell(terminal)
     count: s32 = terminal.cols * terminal.rows
-    i: s32 = 0
-    while i < count {
-        cells[i] = blank
-        i += 1
+    fill_cells(cells, count, blank)
+}
+
+#scope_module
+fill_cells :: (cells: *Cell, count: s32, blank: Cell) {
+    if cells == null || count <= 0 { return }
+    cells[0] = blank
+    filled: s32 = 1
+    while filled < count {
+        copy := count - filled
+        if copy > filled { copy = filled }
+        // Only initialized cells are copied. Source and destination ranges
+        // are disjoint, and the final partial copy never exceeds the block.
+        memcpy(cast(*void)(*cells[filled]), cast(*void)cells, cast(usize)copy * size_of(Cell))
+        filled += copy
     }
 }
 
@@ -85,11 +96,8 @@ terminal_clear_row :: (terminal: *Terminal, row: s32) {
     terminal_sixel_clear_range(terminal, row * terminal.cols,
     (row + 1) * terminal.cols)
     blank: Cell = terminal_blank_cell(terminal)
-    col: s32 = 0
-    while col < terminal.cols {
-        cells[row * terminal.cols + col] = blank
-        col += 1
-    }
+    cols := terminal.cols
+    fill_cells(*cells[row * cols], cols, blank)
     if wrapped != null { wrapped[row] = 0 }
 }
 

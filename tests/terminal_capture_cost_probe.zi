@@ -1,0 +1,98 @@
+// Linux diagnostic for Harmony's detached capture/reflow sequence. Timed
+// stages are inclusive native wall/thread CPU costs, not full interaction.
+Engine :: #import "terminal";
+Timer :: #import "std/timer_linux";
+Text :: #import "std/byte_text_linux";
+#import "std/text"
+
+libc :: #system_library "libc";
+ReadClock :: (clock: s32, value: *Timer.ClockValue) -> s32 #foreign libc "clock_gettime";
+FreeCorpus :: (memory: *void) #foreign libc "free";
+Stamp :: struct { wall: s64; cpu: s64 }
+Now :: () -> Stamp {
+    wall: Timer.ClockValue; cpu: Timer.ClockValue
+    if ReadClock(1, *wall) != 0 || ReadClock(3, *cpu) != 0 { return .{-1, -1} }
+    return .{wall.seconds * 1000000000 + wall.nanoseconds, cpu.seconds * 1000000000 + cpu.nanoseconds}
+}
+Bytes :: (value: string) -> *u8 { descriptor := cast(*Text.TextDescriptor)(*value); return descriptor.data }
+Corpus :: (history: s32, styled: bool) -> string {
+    bytes: Vec(u8)
+    for row: 0..history + 23 {
+        if styled {
+            BuilderPrint(*bytes, "\x1b[38;5;%mrow % café 日本語 Á abcdefghijklmnopqrstuvwxyz0123456789 \x1b[0m\n", row % 255, row)
+        } else {
+            BuilderPrint(*bytes, "row % abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ\n", row)
+        }
+    }
+    return BuilderFinish(bytes)
+}
+Digest :: (terminal: *Engine.Terminal) -> u64 {
+    result: u64 = cast(u64)terminal.scrollback_count + cast(u64)terminal.cursor_col + cast(u64)terminal.cursor_row
+    for row: 0..Engine.terminal_visible_line_count(terminal) - 1 {
+        result = result * cast(u64)33 + cast(u64)Engine.terminal_visible_line_wrapped(terminal, row)
+        for col: 0..terminal.cols - 1 {
+            cell := Engine.terminal_visible_cell(terminal, col, row)
+            if cell == null { return 0 }
+            result = result * cast(u64)33 + cast(u64)cell.codepoint + cast(u64)cell.combining
+            result = result * cast(u64)33 + cast(u64)cast(u32)cell.fg + cast(u64)cast(u32)cell.bg
+            result = result * cast(u64)33 + cast(u64)cast(u32)cell.underline + cast(u64)cell.hyperlink + cast(u64)cell.style
+        }
+    }
+    return result
+}
+Measure :: (value: string, history: s32, styled: bool, cols: s32, rows: s32, run: s32) -> bool {
+    terminal: Engine.Terminal; Engine.terminal_init(*terminal)
+    defer { Engine.terminal_close(*terminal) }
+    allocate: Stamp; feed: Stamp; reflow: Stamp
+    digest: u64
+    // Warm both allocator and parser before recording. All samples reconstruct
+    // the entire detached terminal, as terminal_view.Rebuild does currently.
+    for iteration: 0..cast(s32)18 {
+        start := Now()
+        Engine.terminal_close(*terminal)
+        Engine.terminal_resize(*terminal, 80, 24)
+        ready := Now()
+        if terminal.cols != 80 || terminal.rows != 24 ||
+            !Engine.terminal_feed_capture(*terminal, cast(*void)Bytes(value), cast(s32)value.count, true) { return false }
+        terminal.cursor_col = 15; terminal.cursor_row = 23; terminal.cursor_visible = 1
+        parsed := Now()
+        Engine.terminal_resize(*terminal, cols, rows)
+        end := Now()
+        if terminal.cols != cols || terminal.rows != rows || start.wall < 0 || start.cpu < 0 ||
+            ready.wall < start.wall || ready.cpu < start.cpu || parsed.wall < ready.wall || parsed.cpu < ready.cpu ||
+            end.wall < parsed.wall || end.cpu < parsed.cpu { return false }
+        if iteration >= 3 {
+            allocate.wall += ready.wall - start.wall; allocate.cpu += ready.cpu - start.cpu
+            feed.wall += parsed.wall - ready.wall; feed.cpu += parsed.cpu - ready.cpu
+            reflow.wall += end.wall - parsed.wall; reflow.cpu += end.cpu - parsed.cpu
+        }
+        // Outside timing; prove every reconstruction has the same retained
+        // cells, styles, wrapped rows and cursor within this workload.
+        current := Digest(*terminal)
+        if current == 0 || (iteration > 0 && current != digest) { return false }
+        digest = current
+    }
+    print("{\"run\":%,\"history_input_rows\":%,\"styled\":%,\"source_cols\":80,\"source_rows\":24,\"view_cols\":%,\"view_rows\":%,\"body_bytes\":%,\"iterations\":16,\"allocate_wall_ns\":%,\"allocate_cpu_ns\":%,\"feed_wall_ns\":%,\"feed_cpu_ns\":%,\"reflow_wall_ns\":%,\"reflow_cpu_ns\":%,\"digest\":%}\n",
+        run, history, styled, cols, rows, value.count, allocate.wall, allocate.cpu, feed.wall, feed.cpu, reflow.wall, reflow.cpu, digest)
+    return true
+}
+#program_export
+main :: () -> s32 {
+    histories: [4]s32 = .{0, 24, 500, 2000}
+    for run: 0..cast(s32)3 {
+        for order: 0..cast(s32)7 {
+            index := ifx run % 2 == 0 then order else 7 - order
+            history := histories[index / 2]; styled := index % 2 == 1
+            value := Corpus(history, styled)
+            defer { FreeCorpus(cast(*void)Bytes(value)) }
+            if value.count > 262143 { print("Capture corpus exceeds Harmony's bounded text buffer\n"); return 1 }
+            for view: 0..cast(s32)2 {
+                which := ifx run % 2 == 0 then view else 2 - view
+                cols: s32 = ifx which == 0 then 80 else ifx which == 1 then 96 else 40
+                rows: s32 = ifx which == 1 then 30 else 24
+                if !Measure(value, history, styled, cols, rows, run) { print("Capture cost sample failed\n"); return 1 }
+            }
+        }
+    }
+    return 0
+}
