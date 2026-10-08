@@ -31,6 +31,9 @@ viewport_emit :: (view: *TerminalViewport, wrapped: s32) {
 }
 viewport_append :: (view: *TerminalViewport, first: s32, count: s32, soft: s32) {
     at: s32
+    // Even an empty physical row needs its own source coordinate. Remote
+    // page readers use that coordinate to retain a blank-line scroll anchor.
+    if count == 0 && view.pending_count == 0 { view.pending_first = first }
     while at < count {
         if view.pending_count >= view.cols { viewport_emit(view, 1) }
         if view.pending_count == 0 { view.pending_first = first + at }
@@ -39,6 +42,83 @@ viewport_append :: (view: *TerminalViewport, first: s32, count: s32, soft: s32) 
         view.pending_count += take; at += take
     }
     if soft == 0 { viewport_emit(view, 0) }
+}
+#scope_module
+viewport_source_end :: (source: *Terminal, logical: s32, history: s32, soft: s32) -> s32 {
+    if logical < history {
+        physical := (source.scrollback_head - history + logical + source.scrollback_capacity) % source.scrollback_capacity
+        return row_text_end(source.scrollback, source.cols, physical, soft)
+    }
+    cells := ifx source.alternate_screen != 0 then source.alt_cells else source.main_cells
+    return row_text_end(cells, source.cols, logical - history, soft)
+}
+#scope_export
+// Project a complete captured page, including source rows that become history
+// when a narrower or shorter viewer reflows/crops the source screen. This is
+// read-only and allocates only row metadata, never another cell/history grid.
+#program_export
+terminal_viewport_build_complete :: (view: *TerminalViewport, source: *Terminal,
+cols: s32, rows: s32) -> bool {
+    if view == null || source == null || source.main_cells == null ||
+        source.cols <= 0 || source.cols > MAX_COLS || source.rows <= 0 || source.rows > MAX_ROWS ||
+        source.scrollback_count < 0 || source.scrollback_count > source.scrollback_capacity ||
+        (source.scrollback_count > 0 && source.scrollback == null) ||
+        (source.alternate_screen != 0 && source.alt_cells == null) { return false }
+    cols = terminal_clamp_int(cols, 8, MAX_COLS); rows = terminal_clamp_int(rows, 4, MAX_ROWS)
+    history := ifx source.alternate_screen != 0 then 0 else source.scrollback_count
+    // Physical cell coordinates use s32, so reject an unrepresentable page
+    // before any row/index arithmetic or metadata allocation.
+    if cast(s64)(history) + source.rows > cast(s64)2147483647 / source.cols { return false }
+    reflow := source.alternate_screen == 0 && source.cols != cols
+    total: s64; pending: s64
+    for logical: 0..history + source.rows - 1 {
+        soft := ifx reflow then terminal_visible_line_wrapped(source, logical) else 0
+        count := ifx reflow then viewport_source_end(source, logical, history, soft) else (ifx source.cols < cols then source.cols else cols)
+        sum := pending + count
+        split := ifx sum > 0 then (sum - 1) / cols else 0
+        total += split; pending = sum - split * cols
+        if soft == 0 { total += 1; pending = 0 }
+    }
+    if pending > 0 { total += 1 }
+    if total <= 0 || total > 2147483647 { return false }
+    capacity := cast(s32)total; if capacity < rows { capacity = rows }
+    candidate: TerminalViewport; candidate.lines = view.lines; candidate.capacity = capacity
+    if view.lines == null || view.capacity != capacity {
+        candidate.lines = cast(*TerminalViewportRow)malloc(cast(usize)capacity * size_of(TerminalViewportRow))
+        if candidate.lines == null { return false }
+    }
+    candidate.source = source; candidate.cols = cols; candidate.rows = rows
+    candidate.source_cols = source.cols; candidate.source_history = history
+    candidate.blank = terminal_blank_cell(source)
+    for logical: 0..history - 1 {
+        soft := ifx reflow then terminal_visible_line_wrapped(source, logical) else 0
+        count := ifx reflow then viewport_source_end(source, logical, history, soft) else (ifx source.cols < cols then source.cols else cols)
+        viewport_append(*candidate, logical * source.cols, count, soft)
+        if !reflow { candidate.lines[candidate.total_rows - 1].wrapped = terminal_visible_line_wrapped(source, logical) }
+    }
+    prefix_rows := candidate.total_rows; prefix_col := candidate.pending_count
+    metadata: [120]PaneCursor.TerminalPaneReflowRow
+    for logical: history..history + source.rows - 1 {
+        soft := ifx reflow then terminal_visible_line_wrapped(source, logical) else 0
+        count := ifx reflow then viewport_source_end(source, logical, history, soft) else (ifx source.cols < cols then source.cols else cols)
+        metadata[logical - history] = .{count, soft != 0}
+        viewport_append(*candidate, logical * source.cols, count, soft)
+        if !reflow { candidate.lines[candidate.total_rows - 1].wrapped = terminal_visible_line_wrapped(source, logical) }
+    }
+    if candidate.pending_count > 0 { viewport_emit(*candidate, 0) }
+    candidate.main_count = ifx candidate.total_rows < rows then candidate.total_rows else rows
+    candidate.history_rows = candidate.total_rows - candidate.main_count
+    cursor_x := terminal_clamp_int(source.cursor_col, 0, source.cols - 1)
+    cursor_y := terminal_clamp_int(source.cursor_row, 0, source.rows - 1)
+    candidate.cursor_col = terminal_clamp_int(cursor_x, 0, cols - 1)
+    candidate.cursor_row = history + cursor_y - candidate.history_rows
+    if reflow {
+        mapped := PaneCursor.MeasureTerminalPaneReflowCursor(metadata[:source.rows], cols, cursor_x, cursor_y, true, prefix_col)
+        candidate.cursor_col = terminal_clamp_int(mapped.col, 0, cols - 1)
+        candidate.cursor_row = prefix_rows + mapped.row - candidate.history_rows
+    }
+    if candidate.lines != view.lines { free(cast(*void)view.lines) }
+    view.* = candidate; return true
 }
 #scope_export
 #program_export

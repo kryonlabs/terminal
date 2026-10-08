@@ -1,0 +1,115 @@
+// Complete physical-page projection retains every meaningful source cell,
+// including history created only by narrowing or shortening the viewer.
+#import "terminal"
+Text :: #import "std/byte_text_linux"
+libc :: #system_library "c";
+CompareRaw :: (a: *void, b: *void, count: usize) -> s32 #foreign libc "memcmp";
+Track :: (failure: s32) #foreign libc "capture_storage_track";
+Stop :: () -> s32 #foreign libc "capture_storage_stop";
+
+Fill :: (source: *Terminal, history: s32, soft: bool) {
+    terminal_close(source); terminal_init(source); terminal_set_scrollback_limit(source, 7)
+    terminal_resize(source, 24, 12)
+    source.scrollback_count = history; source.scrollback_head = history
+    source.cursor_row = 5; source.cursor_col = 0
+    for logical: 0..history + source.rows - 1 {
+        cells := ifx logical < history then source.scrollback else source.main_cells
+        wrapped := ifx logical < history then source.scrollback_wrapped else source.main_wrapped
+        row := ifx logical < history then logical else logical - history
+        end := ifx logical % 3 == 0 then 0 else (logical * 7) % 24 + 1
+        if soft && logical % 4 == 1 { end = 24; wrapped[row] = 1 } else { wrapped[row] = 0 }
+        for col: 0..23 {
+            cell := terminal_blank_cell(source)
+            if col < end { cell.codepoint = cast(u32)(33 + col); cell.fg = cast(s32)(logical * 24 + col + 1); cell.bg = COLOR_TRUE_RGB | cast(s32)(logical * 24 + col) }
+            cells[row * 24 + col] = cell
+        }
+    }
+}
+#program_export
+main :: () -> s32 {
+    source: Terminal; view: TerminalViewport; checked: s32
+    terminal_init(*source)
+    defer { source.fd = -1; source.pid = 0; source.running = 0; terminal_viewport_close(*view); terminal_close(*source) }
+    widths: [4]s32 = .{8,16,24,40}; heights: [3]s32 = .{4,8,20}
+    history_case: s32 = 0
+    while history_case < 2 {
+        wrapping: s32 = 0
+        while wrapping < 2 {
+            history := cast(s32)history_case * 7
+            Fill(*source, history, wrapping != 0)
+            before := source
+            source.fd = 117; source.pid = 99117; source.running = 1
+            width: s32 = 0
+            while width < 4 {
+                height: s32 = 0
+                while height < 3 {
+                    if !terminal_viewport_build_complete(*view, *source, widths[width], heights[height]) { return 1 }
+                    visited: [456]u8
+                    row: s32 = 0
+                    while row < view.history_rows + view.main_count {
+                        line := view.lines[row]
+                        if line.count == 0 && line.first % source.cols != 0 { return 2 }
+                        col: s32 = 0
+                        while col < view.cols {
+                            cell := terminal_viewport_cell(*view, col, row)
+                            if cell == null { return 3 }
+                            if cell.codepoint != cast(u32)32 {
+                                at := cell.fg - 1
+                                if at < 0 || at >= cast(s32)visited.count || visited[at] != 0 { return 4 }
+                                visited[at] = 1
+                                original := terminal_visible_cell(*source, at % 24, at / 24)
+                                if original == null || CompareRaw(cast(*void)cell, cast(*void)original, size_of(Cell)) != 0 { return 5 }
+                            }
+                            col += 1
+                        }
+                        row += 1
+                    }
+                    logical: s32 = 0
+                    while logical < history + source.rows {
+                        col: s32 = 0
+                        while col < 24 {
+                            cell := terminal_visible_cell(*source, col, logical)
+                            if cell.codepoint != cast(u32)32 && visited[logical * 24 + col] != 1 { return 6 }
+                            col += 1
+                        }
+                        logical += 1
+                    }
+                    // Empty hard rows retain their physical source position.
+                    if wrapping == 0 {
+                        logical = 0
+                        while logical < history + source.rows {
+                            if logical % 3 == 0 {
+                                found := false
+                                row = 0
+                                while row < view.history_rows + view.main_count {
+                                    line := view.lines[row]
+                                    if line.first == logical * 24 && (line.count == 0 || view.cols == 24) { found = true }
+                                    row += 1
+                                }
+                                if !found { return 7 }
+                            }
+                            logical += 1
+                        }
+                    }
+                    checked += 1
+                    height += 1
+                }
+                width += 1
+            }
+            source.fd = before.fd; source.pid = before.pid; source.running = before.running
+            if CompareRaw(cast(*void)(*source), cast(*void)(*before), size_of(Terminal)) != 0 { return 8 }
+            wrapping += 1
+        }
+        history_case += 1
+    }
+    Fill(*source, 0, false)
+    if !terminal_viewport_build_complete(*view, *source, 8, 4) || view.history_rows <= 0 { return 9 }
+    Track(0); ok := terminal_viewport_build_complete(*view, *source, 8, 4); allocations := Stop()
+    if !ok || allocations != 0 { return 10 }
+    previous := view
+    Track(1); ok = terminal_viewport_build_complete(*view, *source, 40, 120); allocations = Stop()
+    if ok || allocations != 1 || CompareRaw(cast(*void)(*view), cast(*void)(*previous), size_of(TerminalViewport)) != 0 { return 11 }
+    if terminal_viewport_build_complete(*view, null, 80, 24) { return 12 }
+    print("Complete viewport: % whole-page cell/blank-anchor cases; no attached-source mutation, unchanged allocation or partial failed-growth projection\n", checked)
+    return 0
+}
