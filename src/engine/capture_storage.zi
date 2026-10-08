@@ -4,16 +4,20 @@
 #scope_module
 #scope_export
 #program_export
-terminal_reset_capture :: (terminal: *Terminal, cols: s32, rows: s32) -> bool {
+terminal_reset_capture :: (terminal: *Terminal, cols: s32, rows: s32,
+history_limit: s32 = SCROLLBACK_LIMIT) -> bool {
     if terminal == null || terminal.fd >= 0 || terminal.running != 0 || terminal.pid > 0 { return false }
     cols = terminal_clamp_int(cols, 8, MAX_COLS)
     rows = terminal_clamp_int(rows, 4, MAX_ROWS)
+    // Page readers reserve only the physical rows they request. Keep the
+    // ordinary capture limit by default and reject unrepresentable indices.
+    if history_limit <= 0 || cast(s64)history_limit + rows > cast(s64)2147483647 / cols { return false }
     reusable := terminal.cols >= cols && terminal.rows >= rows &&
         terminal.main_cells != null && terminal.alt_cells != null &&
         terminal.main_wrapped != null && terminal.alt_wrapped != null &&
         terminal.tab_stops != null && terminal.scrollback != null &&
-        terminal.scrollback_wrapped != null && terminal.scrollback_capacity >= SCROLLBACK_LIMIT &&
-        terminal.scrollback_capacity <= SCROLLBACK_LIMIT + terminal.rows - 1
+        terminal.scrollback_wrapped != null && terminal.scrollback_capacity >= history_limit &&
+        terminal.scrollback_capacity <= history_limit + terminal.rows - 1
     main_cells := terminal.main_cells; alt_cells := terminal.alt_cells
     main_wrapped := terminal.main_wrapped; alt_wrapped := terminal.alt_wrapped
     scrollback := terminal.scrollback; scrollback_wrapped := terminal.scrollback_wrapped
@@ -27,7 +31,7 @@ terminal_reset_capture :: (terminal: *Terminal, cols: s32, rows: s32) -> bool {
         main_wrapped = cast(*u8)calloc(cast(usize)rows, 1)
         alt_wrapped = cast(*u8)calloc(cast(usize)rows, 1)
         tabs = cast(*u8)calloc(cast(usize)cols, 1)
-        history_capacity = SCROLLBACK_LIMIT
+        history_capacity = history_limit
         scrollback = cast(*Cell)malloc(cast(usize)history_capacity * cast(usize)cols * size_of(Cell))
         scrollback_wrapped = cast(*u8)calloc(cast(usize)history_capacity, 1)
         if main_cells == null || alt_cells == null || main_wrapped == null || alt_wrapped == null ||
@@ -41,7 +45,7 @@ terminal_reset_capture :: (terminal: *Terminal, cols: s32, rows: s32) -> bool {
     } else if terminal.cols != cols {
         // A narrower source must not retain a wider history allocation. It
         // needs no copy because reset discards all logical history rows.
-        if history_capacity > SCROLLBACK_LIMIT { history_capacity = SCROLLBACK_LIMIT + rows - 1 }
+        if history_capacity > history_limit { history_capacity = history_limit + rows - 1 }
         replacement := cast(*Cell)malloc(cast(usize)history_capacity * cast(usize)cols * size_of(Cell))
         if replacement == null { return false }
         free(cast(*void)scrollback)
@@ -61,6 +65,7 @@ terminal_reset_capture :: (terminal: *Terminal, cols: s32, rows: s32) -> bool {
     terminal.tab_stops = tabs
     terminal.cols = cols; terminal.rows = rows; terminal.scroll_bottom = rows - 1
     terminal.scrollback_capacity = history_capacity
+    terminal.scrollback_limit = history_limit
     // Discarded history is not readable; replay writes each logical row in
     // full before increasing its count. Do not touch unused history pages.
     terminal_clear_cell_block(terminal, main_cells)

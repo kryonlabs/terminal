@@ -1,0 +1,48 @@
+// A remote page owns only its requested history capacity. Default captures
+// keep their established limit, and failed replacements keep complete state.
+#import "terminal"
+Text :: #import "std/byte_text_linux"
+libc :: #system_library "c";
+CompareRaw :: (a: *void, b: *void, count: usize) -> s32 #foreign libc "memcmp";
+Track :: (failure: s32) #foreign libc "capture_storage_track";
+Stop :: () -> s32 #foreign libc "capture_storage_stop";
+
+CheckPages :: (source: *Terminal) -> s32 {
+    limits: [4]s32 = .{1,7,36,2100}
+    for sample: 0..cast(s32)3 {
+        limit := limits[sample]
+        if !terminal_reset_capture(source, 24, 12, limit) || source.scrollback_capacity != limit || source.scrollback_limit != limit { return 1 }
+        body: [64000]u8; count: s32
+        for row: 0..limit + 11 {
+            // Two digits uniquely identify the small pages; the large page
+            // deliberately exercises capacity beyond the default limit.
+            body[count] = cast(u8)(65 + row % 26); count += 1
+            body[count] = cast(u8)(97 + (row / 26) % 26); count += 1
+            body[count] = 10; count += 1
+        }
+        if !terminal_feed_capture(source, cast(*void)(*body[0]), count, true) || source.scrollback_count != limit { return 2 }
+        for row: 0..limit + 11 {
+            a := terminal_visible_cell(source, 0, row); b := terminal_visible_cell(source, 1, row)
+            if a == null || b == null || a.codepoint != cast(u32)(65 + row % 26) || b.codepoint != cast(u32)(97 + (row / 26) % 26) { return 3 }
+        }
+        Track(0); ok := terminal_reset_capture(source, 24, 12, limit); attempts := Stop()
+        if !ok || attempts != 0 || source.scrollback_capacity > limit + 11 { return 4 }
+        if !terminal_feed_capture(source, cast(*void)(*body[0]), count, true) { return 5 }
+    }
+    before := source.*
+    for failure: 1..cast(s32)7 {
+        Track(failure); ok := terminal_reset_capture(source, 80, 24, 36); unused Stop()
+        if ok || CompareRaw(cast(*void)source, cast(*void)(*before), size_of(Terminal)) != 0 { return 6 }
+    }
+    if terminal_reset_capture(source, 24, 12, 0) || terminal_reset_capture(source, 24, 12, -1) ||
+        terminal_reset_capture(source, 240, 120, 2147483647) { return 7 }
+    if !terminal_reset_capture(source, 80, 24) || source.scrollback_limit != SCROLLBACK_LIMIT { return 8 }
+    print("Capture pages: 4 exact-capacity/replay cases, 7 transactional failures, invalid-size guards and default compatibility passed\n")
+    return 0
+}
+#program_export
+main :: () -> s32 {
+    source: Terminal; terminal_init(*source)
+    defer { terminal_close(*source) }
+    return CheckPages(*source)
+}
