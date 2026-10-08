@@ -2,7 +2,8 @@
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
-unset DISPLAY WAYLAND_DISPLAY XAUTHORITY ENV BASH_ENV
+unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS ENV BASH_ENV
+export YUE_DESKTOP_RECOVERY=0
 ziran=${ZIRAN:-"$root/scripts/ziran.sh"}
 lock_flags=
 if test ! -f ziran.local.toml; then lock_flags=--locked; fi

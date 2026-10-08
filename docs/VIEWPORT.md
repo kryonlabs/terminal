@@ -8,7 +8,7 @@ remain independent of a host's display geometry.
 
 The source must outlive the viewport. Rebuild after a feed, source resize,
 cursor change or any other source mutation; references are not immutable
-snapshots. Close the viewport before closing its source. A failed allocation
+snapshots. Returned cell pointers must not be written through. Close the viewport before closing its source. A failed allocation
 leaves the previous viewport and source unchanged; the caller must wait for a
 successful rebuild before displaying a changed source.
 
@@ -42,9 +42,14 @@ and failed-allocation guards. `make terminal-viewport-plan9-test` runs the same
 source/saved-IR fixture through native Plan 9 `8c`/`8l`, with `TAIJI_DIR` set to
 the canonical Taiji checkout. These tests open no desktop windows.
 
-The prepared row index is a reusable engine primitive. Adoption by the
-existing `TerminalPane` widget and Harmony still needs complete paint/input
-equivalence and balanced native-window CPU/PSS checks, including narrow
+Pass the prepared index as `TerminalPane.viewport` and keep `TerminalPane.terminal`
+pointing at its original source. The existing widget paints the projected cells
+and cursor, uses the original palette and input modes, and leaves source
+geometry and ownership intact. It refreshes the projection if display geometry
+changes; callers must rebuild after source mutation. Without a viewport, the
+widget retains its normal source-resize behavior.
+
+Harmony adoption still needs full-path equivalence and balanced native-window CPU/PSS checks, including narrow
 displays: retaining the source grid can cost more RAM than resizing it to a
 narrower viewport. No whole-application speedup or deployment follows from
 the engine checks alone.

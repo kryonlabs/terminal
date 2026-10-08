@@ -68,7 +68,12 @@ Fill :: (terminal: *Terminal, cols: s32, rows: s32, count: s32, phase: s32, alte
 main :: () -> s32 {
     source: Terminal; reference: Terminal; view: TerminalViewport
     terminal_init(*source); terminal_init(*reference)
-    defer { terminal_viewport_close(*view); terminal_close(*source); terminal_close(*reference) }
+    defer {
+        // Synthetic attachment metadata never reaches process cleanup,
+        // including an early failure in the preservation assertion.
+        source.fd = -1; source.pid = 0; source.running = 0
+        terminal_viewport_close(*view); terminal_close(*source); terminal_close(*reference)
+    }
     sizes: [6][2]s32 = .{.{8,4},.{40,24},.{80,24},.{96,30},.{100,30},.{240,120}}
     histories: [3]s32 = .{0,9,31}
     checked: s32

@@ -12,9 +12,11 @@ Input :: #import "kryon/tree_input";
 Paint :: #import "kryon/paint_queue";
 Host :: #import "terminal_pane_widget_host";
 ClipboardHost :: #import "terminal_clipboard_host";
+Fixtures :: #import "terminal_capture_test";
 
 #scope_file
 libc :: #system_library "c";
+CompareRaw :: (left: *void, right: *void, count: usize) -> s32 #foreign libc "memcmp";
 Environment :: (name: *u8) -> *u8 #foreign libc "getenv";
 #if #defined(PLAN9) {
     Pause :: (milliseconds: s32) -> s32 #foreign libc "sleep";
@@ -168,6 +170,7 @@ PlainPaint :: struct {
 plain_expected: [128]PlainPaint;
 plain_runs: s32;
 plain_run_cells: s32;
+projection_expected: [8192]PlainPaint;
 DrawFixedCells :: (session: Sessions.Session, node: s32, value: string,
     row: Rectangle, first: s32, cell_width: s32, font: s32, color: Color, clip: Rectangle) {
     plain_runs += 1; plain_run_cells += cast(s32)value.count
@@ -226,6 +229,94 @@ TestPlainRuns :: (session: Sessions.Session) -> bool {
     ok := Finish(session); Engine.terminal_close(*terminal); return ok
 }
 
+TestProjection :: (session: Sessions.Session) -> bool {
+    source: Engine.Terminal; reference: Engine.Terminal; view: Engine.TerminalViewport
+    Engine.terminal_init(*source); Engine.terminal_init(*reference)
+    defer { Engine.terminal_viewport_close(*view); Engine.terminal_close(*source); Engine.terminal_close(*reference) }
+    boxes: [2]Rectangle = .{.{-2.375,5.625,68.0,68.0},.{-2.375,5.625,280.0,80.0}}
+    offsets: [3]s32 = .{0,10,1000}
+    checked: s32
+    for kind: 0..cast(s32)5 {
+        value := Fixtures.Corpus(kind,90)
+        defer { Fixtures.Release(value) }
+        for box: 0..cast(s32)1 {
+            for offset: 0..cast(s32)2 {
+                for batch: 0..cast(s32)1 {
+                    if !Engine.terminal_reset_capture(*source,80,24) || !Engine.terminal_reset_capture(*reference,80,24) { return false }
+                    if !Engine.terminal_feed_capture(*source,cast(*void)Fixtures.Bytes(value),cast(s32)value.count,true) ||
+                       !Engine.terminal_feed_capture(*reference,cast(*void)Fixtures.Bytes(value),cast(s32)value.count,true) { return false }
+                    pane: Pane.TerminalPane
+                    pane.key = cast(u64)203; pane.bounds = boxes[box]; pane.font_size = 14
+                    pane.cell_width = 7; pane.draw_text = DrawFixedText
+                    if batch != 0 { pane.draw_cells = DrawFixedCells }
+                    pane.scroll_offset = offsets[offset]; pane.focused = true; pane.show_cursor = true; pane.blink_on = true
+                    pane.terminal = *reference
+                    Input.TreePointerUpdate(session,Input.PointerFrame.{})
+                    Begin(session,pane.bounds); expected_result := Pane.DrawTerminalPane(session,pane)
+                    count := Paint.PendingPaintCount(session)
+                    if count < 1 || count > cast(s32)projection_expected.count { return false }
+                    for at: 0..count - 1 {
+                        command := Paint.PendingPaintAt(session,at)
+                        projection_expected[at].kind = command.kind; projection_expected[at].bounds = command.bounds
+                        projection_expected[at].color = command.color; projection_expected[at].clip = command.clip
+                        projection_expected[at].x = command.x; projection_expected[at].y = command.y
+                        projection_expected[at].font = command.font
+                        if command.value.count > 16 { return false }
+                        projection_expected[at].length = cast(s32)command.value.count
+                        position: s32
+                        while position < cast(s32)command.value.count {
+                            projection_expected[at].text[position] = command.value[position]; position += 1
+                        }
+                    }
+                    if !Finish(session) { return false }
+                    measured := Pane.MeasureTerminalPane(pane.bounds,14,0,1.0,7)
+                    if !Engine.terminal_viewport_build(*view,*source,measured.cols,measured.rows) { return false }
+                    // Source geometry and its complete parser state must
+                    // survive painting, including every palette override.
+                    pane.terminal = *source; pane.viewport = *view
+                    before := source
+                    Begin(session,pane.bounds); actual_result := Pane.DrawTerminalPane(session,pane)
+                    if source.cols != 80 || source.rows != 24 ||
+                       actual_result.cols != expected_result.cols || actual_result.rows != expected_result.rows ||
+                       actual_result.focused != expected_result.focused || Paint.PendingPaintCount(session) != count { return false }
+                    // Explicit state comparison avoids relying only on the
+                    // unchanged dimensions for a supposedly read-only draw.
+                    if CompareRaw(cast(*void)(*before),cast(*void)(*source),size_of(Engine.Terminal)) != 0 { return false }
+                    for at: 0..count - 1 {
+                        actual := Paint.PendingPaintAt(session,at); expected := projection_expected[at]
+                        text := TextView(projection_expected[at].text[:projection_expected[at].length])
+                        if actual.kind != expected.kind || actual.value != text ||
+                           actual.x != expected.x || actual.y != expected.y || actual.font != expected.font ||
+                           actual.bounds.x != expected.bounds.x || actual.bounds.y != expected.bounds.y ||
+                           actual.bounds.width != expected.bounds.width || actual.bounds.height != expected.bounds.height ||
+                           actual.color.r != expected.color.r || actual.color.g != expected.color.g ||
+                           actual.color.b != expected.color.b || actual.color.a != expected.color.a ||
+                           actual.clip.x != expected.clip.x || actual.clip.y != expected.clip.y ||
+                           actual.clip.width != expected.clip.width || actual.clip.height != expected.clip.height {
+                            print("Projection paint mismatch: kind %, box %, offset %, batch %, paint %\n",kind,box,offset,batch,at);return false
+                        }
+                    }
+                    if !Finish(session) { return false }; checked += 1
+                }
+            }
+        }
+    }
+    captured: Captured
+    input_pane: Pane.TerminalPane
+    input_pane.key = cast(u64)203; input_pane.bounds = boxes[1]; input_pane.font_size = 14; input_pane.cell_width = 7
+    input_pane.terminal = *source; input_pane.viewport = *view
+    input_pane.focused = true; input_pane.handle_input = true; input_pane.write_input = Capture
+    input_pane.input_userdata = cast(*void)(*captured)
+    before_input := source
+    Input.TypedCodepointSend(session,937)
+    Begin(session,input_pane.bounds); result := Pane.DrawTerminalPane(session,input_pane)
+    if result.wrote_input != 2 || captured.count != 2 || TextView(captured.bytes[:2]) != "Ω" ||
+       CompareRaw(cast(*void)(*before_input),cast(*void)(*source),size_of(Engine.Terminal)) != 0 || !Finish(session) { return false }
+    Begin(session,input_pane.bounds); result = Pane.DrawTerminalPane(session,input_pane)
+    if result.wrote_input != 0 || captured.count != 2 || !Finish(session) { return false }
+    print("Projected pane matches % complete paint plans, with source geometry/state retained and exactly-once host Unicode input\n",checked)
+    return true
+}
 #scope_export
 #program_export
 main :: () -> s32 {
@@ -234,6 +325,7 @@ main :: () -> s32 {
     if !TestMirror(session) { return 17 }
     if !TestFixedPitch(session) { return 18 }
     if !TestPlainRuns(session) { return 19 }
+    if !TestProjection(session) { return 20 }
     bounds := Rectangle.{0.0, 0.0, 68.0, 68.0}
     pane: Pane.TerminalPane
     pane.key = cast(u64)2; pane.bounds = bounds

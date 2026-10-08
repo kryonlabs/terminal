@@ -59,6 +59,10 @@ TerminalPane :: struct {
     // session) receives the encoded bytes here instead of the Terminal's PTY.
     write_input: Keys.TerminalPaneInputWriteFn
     input_userdata: *void
+    // Optional prepared read-only projection. Rebuild it after source
+    // mutation; the pane updates its geometry when the display changes.
+    // The source still supplies input modes, colors and PTY ownership.
+    viewport: *Engine.TerminalViewport
 }
 
 TerminalPaneResult :: struct {
@@ -248,12 +252,16 @@ DrawCell :: (session: Sessions.Session, node: s32, terminal: *Engine.Terminal,
     }
 }
 
-PlainCell :: (terminal: *Engine.Terminal, col: s32, row: s32) -> *Engine.Cell {
-    cell := Engine.terminal_visible_cell(terminal, col, row)
+PaneCell :: (pane: *TerminalPane, col: s32, row: s32) -> *Engine.Cell {
+    if pane.viewport != null { return Engine.terminal_viewport_cell(pane.viewport, col, row) }
+    return Engine.terminal_visible_cell(pane.terminal, col, row)
+}
+PlainCell :: (pane: *TerminalPane, col: s32, row: s32) -> *Engine.Cell {
+    cell := PaneCell(pane, col, row)
     if cell == null || cell.codepoint < cast(u32)32 || cell.codepoint > cast(u32)126 ||
         cell.combining != cast(u32)0 || cell.style != 0 ||
         cell.bg != Engine.COLOR_DEFAULT || cell.hyperlink != 0 { return null }
-    next := Engine.terminal_visible_cell(terminal, col + 1, row)
+    next := PaneCell(pane, col + 1, row)
     if next != null && (next.style & Engine.STYLE_WIDE_CONT) != 0 { return null }
     return cell
 }
@@ -283,7 +291,11 @@ DrawTerminalPane :: (session: Sessions.Session, pane: TerminalPane) -> TerminalP
     }
     terminal := pane.terminal
     if terminal == null { return result }
-    Engine.terminal_resize(terminal, measured.cols, measured.rows)
+    if pane.viewport != null {
+        if pane.viewport.source != terminal || pane.viewport.cols != measured.cols || pane.viewport.rows != measured.rows {
+            if !Engine.terminal_viewport_build(pane.viewport, terminal, measured.cols, measured.rows) { return result }
+        }
+    } else { Engine.terminal_resize(terminal, measured.cols, measured.rows) }
     if result.focused && pane.handle_input {
         keys: [1]s32
         codepoints: [32]u32
@@ -296,18 +308,26 @@ DrawTerminalPane :: (session: Sessions.Session, pane: TerminalPane) -> TerminalP
     font := Metrics.TerminalPaneFontSizeFor(pane.font_size, policy)
     // Cells keep their own colors and styles; default cells use the theme.
     back := pane.scroll_offset; if back < 0 { back = 0 }
-    first := Engine.terminal_visible_line_count(terminal) - terminal.rows - back
+    cols := terminal.cols; rows := terminal.rows
+    lines := Engine.terminal_visible_line_count(terminal)
+    cursor_col := terminal.cursor_col; cursor_row := terminal.cursor_row
+    if pane.viewport != null {
+        cols = pane.viewport.cols; rows = pane.viewport.rows
+        lines = Engine.terminal_viewport_line_count(pane.viewport)
+        cursor_col = pane.viewport.cursor_col; cursor_row = pane.viewport.cursor_row
+    }
+    first := lines - rows - back
     if first < 0 { first = 0 }
     row: s32
-    while row < terminal.rows && row < measured.rows {
+    while row < rows && row < measured.rows {
         col: s32
-        while col < terminal.cols && col < measured.cols {
+        while col < cols && col < measured.cols {
             if pane.draw_cells != null && pane.cell_width > 0 {
-                plain := PlainCell(terminal, col, first + row)
+                plain := PlainCell(*pane, col, first + row)
                 if plain != null {
                     bytes: [MAX_COLS]u8; count: s32; visible: bool
-                    while col + count < terminal.cols && col + count < measured.cols {
-                        current := PlainCell(terminal, col + count, first + row)
+                    while col + count < cols && col + count < measured.cols {
+                        current := PlainCell(*pane, col + count, first + row)
                         if current == null || current.fg != plain.fg { break }
                         bytes[count] = cast(u8)current.codepoint
                         if current.codepoint != cast(u32)32 { visible = true }
@@ -325,9 +345,9 @@ DrawTerminalPane :: (session: Sessions.Session, pane: TerminalPane) -> TerminalP
                     }
                 }
             }
-            cell := Engine.terminal_visible_cell(terminal, col, first + row)
+            cell := PaneCell(*pane, col, first + row)
             if cell != null && (cell.style & Engine.STYLE_WIDE_CONT) == 0 {
-                next := Engine.terminal_visible_cell(terminal, col + 1, first + row)
+                next := PaneCell(*pane, col + 1, first + row)
                 wide := next != null && (next.style & Engine.STYLE_WIDE_CONT) != 0
                 DrawCell(session, result.node, terminal, cell, colors, font, measured,
                     col, row, pane.blink_on, pane.draw_text, wide)
@@ -338,10 +358,10 @@ DrawTerminalPane :: (session: Sessions.Session, pane: TerminalPane) -> TerminalP
     }
     if back == 0 && result.focused && pane.show_cursor && terminal.cursor_visible != 0 &&
         (terminal.cursor_blink == 0 || pane.blink_on) &&
-        terminal.cursor_col >= 0 && terminal.cursor_row >= 0 &&
-        terminal.cursor_col < measured.cols && terminal.cursor_row < measured.rows {
-        cursor := Rectangle.{measured.content.x + cast(float32)(terminal.cursor_col * measured.cell_width),
-            measured.content.y + cast(float32)(terminal.cursor_row * measured.line_height),
+        cursor_col >= 0 && cursor_row >= 0 &&
+        cursor_col < measured.cols && cursor_row < measured.rows {
+        cursor := Rectangle.{measured.content.x + cast(float32)(cursor_col * measured.cell_width),
+            measured.content.y + cast(float32)(cursor_row * measured.line_height),
             cast(float32)measured.cell_width, cast(float32)measured.line_height}
         cursor = Geometry.RectangleIntersection(cursor, measured.content)
         if cursor.width > 0.0 && cursor.height > 0.0 {
