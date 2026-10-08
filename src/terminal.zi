@@ -2,6 +2,7 @@
 #scope_module
 PaneText :: #import "terminal_pane_text";
 PaneReflow :: #import "terminal_pane_reflow";
+PaneCursor :: #import "terminal_pane_cursor";
 PaneKeys :: #import "terminal_pane_keys";
 PaneMouse :: #import "terminal_pane_mouse";
 PaneSGR :: #import "terminal_pane_sgr";
@@ -251,3 +252,4 @@ SearchMatch :: struct { row: s32; col: s32; length: s32; }
 #load "engine/terminal_state.zi";
 #load "engine/text.zi";
 #load "engine/view.zi";
+#load "engine/viewport.zi";

@@ -135,7 +135,13 @@ terminal-plan9-test:
 terminal-feed-plan9-test:
 	sh tests/pane_plan9_test.sh feed
 
-.PHONY: terminal-capture-test terminal-capture-plan9-test terminal-capture-storage-test terminal-capture-storage-plan9-test reflow-span-test
+.PHONY: terminal-capture-test terminal-capture-plan9-test terminal-capture-storage-test terminal-capture-storage-plan9-test reflow-span-test terminal-viewport-test terminal-viewport-plan9-test
+terminal-viewport-test:
+	sh tests/terminal_viewport_test.sh
+
+terminal-viewport-plan9-test:
+	sh tests/pane_plan9_test.sh viewport
+
 terminal-capture-test:
 	sh tests/terminal_capture_test.sh
 

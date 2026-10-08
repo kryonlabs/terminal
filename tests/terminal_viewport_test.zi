@@ -1,0 +1,135 @@
+// Compare the read-only projection with the complete established resize,
+// including every retained history cell, rather than checking index internals.
+#import "terminal";
+Capture :: #import "terminal_capture_test";
+Text :: #import "std/byte_text_linux";
+libc :: #system_library "c";
+CompareRaw :: (left: *void, right: *void, count: usize) -> s32 #foreign libc "memcmp";
+#if #defined(PLAN9) {
+    Track :: (failure: s32) { unused failure }
+    Stop :: () -> s32 { return 0 }
+} else {
+    Track :: (failure: s32) #foreign libc "capture_storage_track";
+    Stop :: () -> s32 #foreign libc "capture_storage_stop";
+}
+SameCell :: (a: *Cell, b: *Cell) -> bool {
+    return a != null && b != null && a.codepoint == b.codepoint && a.combining == b.combining &&
+        a.fg == b.fg && a.bg == b.bg && a.underline == b.underline &&
+        a.hyperlink == b.hyperlink && a.style == b.style
+}
+SameView :: (view: *TerminalViewport, reference: *Terminal) -> bool {
+    if view.cols != reference.cols || view.rows != reference.rows ||
+       view.cursor_col != reference.cursor_col || view.cursor_row != reference.cursor_row ||
+       terminal_viewport_line_count(view) != terminal_visible_line_count(reference) { return false }
+    projected: [2048]u8; expected: [2048]u8
+    for row: 0..terminal_visible_line_count(reference) - 1 {
+        if terminal_viewport_line_wrapped(view, row) != terminal_visible_line_wrapped(reference, row) { return false }
+        for col: 0..reference.cols - 1 {
+            if !SameCell(terminal_viewport_cell(view, col, row), terminal_visible_cell(reference, col, row)) {
+                print("Cell mismatch: row %, col %\n", row, col); return false
+            }
+        }
+        terminal_viewport_line(view, row, *projected[0], cast(s32)projected.count)
+        terminal_visible_line(reference, row, *expected[0], cast(s32)expected.count)
+        if Text.TextFromCString(*projected[0]) != Text.TextFromCString(*expected[0]) { return false }
+    }
+    return true
+}
+Fill :: (terminal: *Terminal, cols: s32, rows: s32, count: s32, phase: s32, alternate: bool) {
+    terminal_close(terminal); terminal_set_scrollback_limit(terminal, 31); terminal_resize(terminal, cols, rows)
+    terminal.scrollback_count = count; terminal.scrollback_head = (count + phase) % terminal.scrollback_capacity
+    terminal.cursor_col = ifx phase % 4 == 0 then 0 else ifx phase % 4 == 1 then cols - 1 else cols / 2
+    terminal.cursor_row = ifx phase % 3 == 0 then 0 else ifx phase % 3 == 1 then rows - 1 else rows / 2
+    terminal.current_fg = 23; terminal.current_bg = COLOR_TRUE_RGB | 0x010203
+    terminal.current_underline = 41; terminal.current_style = STYLE_ITALIC
+    terminal.alternate_screen = cast(s32)alternate
+    for section: 0..cast(s32)2 {
+        cells := ifx section == 0 then terminal.main_cells else ifx section == 1 then terminal.alt_cells else terminal.scrollback
+        wrapped := ifx section == 0 then terminal.main_wrapped else ifx section == 1 then terminal.alt_wrapped else terminal.scrollback_wrapped
+        length := ifx section < 2 then rows else terminal.scrollback_capacity
+        for row: 0..length - 1 {
+            wrapped[row] = cast(u8)(ifx (row + phase) % 4 == 1 then 1 else 0)
+            end := (row * 7 + phase * 11) % (cols + 1)
+            if row > rows / 2 && section == 0 && phase % 2 == 0 { end = 0; wrapped[row] = 0 }
+            for col: 0..cols - 1 {
+                index := row * cols + col
+                cp := ifx col >= end then cast(u32)32 else cast(u32)(33 + (row + col + phase) % 93)
+                if col < end && col % 7 == 0 { cp = cast(u32)0x4e00 + cast(u32)col }
+                cells[index].codepoint = cp
+                cells[index].combining = ifx col % 9 == 0 then cast(u32)0x301 else cast(u32)0
+                cells[index].fg = (row + col) % 256; cells[index].bg = COLOR_TRUE_RGB | (row * 31 + col)
+                cells[index].underline = col % 16; cells[index].hyperlink = col % 128
+                cells[index].style = cast(u16)((row + col + phase) % 1024)
+            }
+        }
+    }
+}
+#program_export
+main :: () -> s32 {
+    source: Terminal; reference: Terminal; view: TerminalViewport
+    terminal_init(*source); terminal_init(*reference)
+    defer { terminal_viewport_close(*view); terminal_close(*source); terminal_close(*reference) }
+    sizes: [6][2]s32 = .{.{8,4},.{40,24},.{80,24},.{96,30},.{100,30},.{240,120}}
+    histories: [3]s32 = .{0,9,31}
+    checked: s32
+    for input: 0..cast(s32)5 {
+        for output: 0..cast(s32)5 {
+            for history: 0..cast(s32)2 {
+                for phase: 0..cast(s32)3 {
+                    for alternate: 0..cast(s32)1 {
+                        Fill(*source,sizes[input][0],sizes[input][1],histories[history],phase,alternate != 0)
+                        Fill(*reference,sizes[input][0],sizes[input][1],histories[history],phase,alternate != 0)
+                        before := source
+                        terminal_resize(*reference,sizes[output][0],sizes[output][1])
+                        if !terminal_viewport_build(*view,*source,sizes[output][0],sizes[output][1]) ||
+                           CompareRaw(cast(*void)(*before),cast(*void)(*source),size_of(Terminal)) != 0 ||
+                           !SameView(*view,*reference) {
+                            print("Projection mismatch: input %, output %, history %, phase %, alternate %; cursor %,% vs %,%\n",
+                                input,output,history,phase,alternate,view.cursor_col,view.cursor_row,reference.cursor_col,reference.cursor_row);return 1
+                        }
+                        checked += 1
+                    }
+                }
+            }
+        }
+    }
+    for kind: 0..cast(s32)5 {
+        for cycle: 0..cast(s32)1 {
+            value := Capture.Corpus(kind,ifx cycle == 0 then 9 else 2100)
+            defer { Capture.Release(value) }
+            for output: 0..cast(s32)5 {
+                if !terminal_reset_capture(*source,80,24) || !terminal_reset_capture(*reference,80,24) { return 1 }
+                if !terminal_feed_capture(*source,cast(*void)Capture.Bytes(value),cast(s32)value.count,true) ||
+                   !terminal_feed_capture(*reference,cast(*void)Capture.Bytes(value),cast(s32)value.count,true) { return 1 }
+                before := source
+                terminal_resize(*reference,sizes[output][0],sizes[output][1])
+                if !terminal_viewport_build(*view,*source,sizes[output][0],sizes[output][1]) ||
+                   CompareRaw(cast(*void)(*before),cast(*void)(*source),size_of(Terminal)) != 0 || !SameView(*view,*reference) {
+                    print("Capture projection mismatch: kind %, cycle %, output %\n",kind,cycle,output);return 1
+                }
+                checked += 1
+            }
+        }
+    }
+    Fill(*source,80,24,9,1,false)
+    if !terminal_viewport_build(*view,*source,40,4) { return 1 }
+    for iteration: 0..cast(s32)99 {
+        source.fd = 9876; source.pid = 1234; source.running = 1
+        before := source; Track(0)
+        ok := terminal_viewport_build(*view,*source,40,4); attempts := Stop()
+        if !ok || attempts != 0 || CompareRaw(cast(*void)(*before),cast(*void)(*source),size_of(Terminal)) != 0 { return 1 }
+    }
+    source.fd = -1;source.pid = 0;source.running = 0
+    #if !#defined(PLAN9) {
+        old := view; Track(1); ok := terminal_viewport_build(*view,*source,40,120); unused Stop()
+        if ok || CompareRaw(cast(*void)(*old),cast(*void)(*view),size_of(TerminalViewport)) != 0 { return 1 }
+    }
+    if terminal_viewport_build(*view,null,80,24) || terminal_viewport_cell(*view,-1,0) != null ||
+       terminal_viewport_cell(*view,view.cols,0) != null { return 1 }
+    #if #defined(PLAN9) {
+        print("Viewport matches full resize in % complete cell/text/wrap/cursor cases; 100 unchanged attached-source builds and null guards passed (allocator fault injection is a C/C++ gate)\n",checked)
+    } else {
+        print("Viewport matches full resize in % complete cell/text/wrap/cursor cases; 100 allocation-free attached-source builds and failed-allocation/null guards passed\n",checked)
+    }
+    return 0
+}

@@ -12,6 +12,7 @@ case "$suite" in
     feed) module=terminal_feed_probe ;;
     capture) module=terminal_capture_test ;;
     capture-storage) module=terminal_capture_storage_test ;;
+    viewport) module=terminal_viewport_test ;;
     config) module=terminal_config_test ;;
     session) module=terminal_session_test ;;
     launch) module=terminal_launch_options_test ;;
