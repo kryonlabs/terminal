@@ -135,9 +135,15 @@ terminal-plan9-test:
 terminal-feed-plan9-test:
 	sh tests/pane_plan9_test.sh feed
 
-.PHONY: terminal-capture-test terminal-capture-plan9-test reflow-span-test
+.PHONY: terminal-capture-test terminal-capture-plan9-test terminal-capture-storage-test terminal-capture-storage-plan9-test reflow-span-test
 terminal-capture-test:
 	sh tests/terminal_capture_test.sh
+
+terminal-capture-storage-test:
+	sh tests/terminal_capture_storage_test.sh
+
+terminal-capture-storage-plan9-test:
+	sh tests/pane_plan9_test.sh capture-storage
 
 reflow-span-test:
 	sh tests/reflow_span_test.sh
@@ -220,7 +226,7 @@ host-test:
 host-plan9-test:
 	ZIRAN="$(ZIRAN)" sh tests/pane_plan9_test.sh host
 
-pane-ziran-test: terminal-test terminal-capture-test reflow-span-test config-test widget-test profile-test session-test launch-test application-test input-test view-test host-test clipboard-test selection-test keys-test osc-test metrics-test pty-test ziran-migration-check
+pane-ziran-test: terminal-test terminal-capture-test terminal-capture-storage-test reflow-span-test config-test widget-test profile-test session-test launch-test application-test input-test view-test host-test clipboard-test selection-test keys-test osc-test metrics-test pty-test ziran-migration-check
 
 clipboard-plan9-c:
 	env -u DISPLAY -u WAYLAND_DISPLAY $(ZIRAN) build --project $(LOCK_FLAGS) --target=plan9-c \

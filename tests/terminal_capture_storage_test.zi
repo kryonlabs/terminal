@@ -1,0 +1,126 @@
+// Storage reuse must behave exactly like a newly allocated detached engine,
+// including full-parser controls, later PTY feeds and source/view reflow.
+#import "terminal";
+Capture :: #import "terminal_capture_test";
+libc :: #system_library "c";
+CompareRaw :: (left: *void, right: *void, count: usize) -> s32 #foreign libc "memcmp";
+#if #defined(PLAN9) {
+    Track :: (failure: s32) { unused failure }
+    Stop :: () -> s32 { return 0 }
+} else {
+    Track :: (failure: s32) #foreign libc "capture_storage_track";
+    Stop :: () -> s32 #foreign libc "capture_storage_stop";
+}
+
+SameReset :: (actual: *Terminal, expected: *Terminal) -> bool {
+    // Ignore allocation addresses and unused physical ring capacity. Logical
+    // history and everything else, including parser,
+    // clipboard, OSC/DCS, palette, saved cursor and mode state, must match.
+    normalized := actual.*
+    normalized.main_cells = expected.main_cells; normalized.alt_cells = expected.alt_cells
+    normalized.main_wrapped = expected.main_wrapped; normalized.alt_wrapped = expected.alt_wrapped
+    normalized.scrollback = expected.scrollback; normalized.scrollback_wrapped = expected.scrollback_wrapped
+    normalized.tab_stops = expected.tab_stops
+    normalized.scrollback_capacity = expected.scrollback_capacity
+    return CompareRaw(cast(*void)(*normalized), cast(*void)expected, size_of(Terminal)) == 0 && Capture.Same(actual, expected)
+}
+Dirty :: (terminal: *Terminal) {
+    Capture.Feed(terminal, "\x1b[?1049h\x1b[31;48;5;123m\x1b]8;;https://example.test\x1b\\old\x1b]8;;\x1b\\\a")
+    Capture.Feed(terminal, "\x1b]2;old title\x07\x1b]52;c;b2xk\x07\x1bPq~\x1b\\\x1b[?2004h\x1b[?1003h\x1b[?1006h")
+    Capture.Feed(terminal, "\x1b[?1049l\x1b[38;2;1;2;3m\x1b]4;5;rgb:11/22/33\x07\x1b[4h\x1b[?6h\x1b(0\x1b7")
+    pending: [2]u8 = .{240,159}
+    terminal_feed(terminal, cast(*void)(*pending[0]), 2)
+}
+#program_export
+main :: () -> s32 {
+    actual: Terminal; expected: Terminal
+    terminal_init(*actual); terminal_init(*expected)
+    defer { terminal_close(*actual); terminal_close(*expected) }
+    sizes: [5][2]s32 = .{.{80,24},.{96,30},.{40,24},.{8,4},.{240,120}}
+    passed: s32
+    for cycle: 0..cast(s32)2 {
+        for geometry: 0..cast(s32)4 {
+            for kind: 0..cast(s32)5 {
+                Dirty(*actual)
+                cols := sizes[geometry][0]; rows := sizes[geometry][1]
+                terminal_close(*expected); terminal_resize(*expected, cols, rows)
+                if !terminal_reset_capture(*actual, cols, rows) || !SameReset(*actual, *expected) {
+                    print("Reset state mismatch: cycle %, geometry %, kind %\n", cycle, geometry, kind); return 1
+                }
+                value := Capture.Corpus(kind, ifx cycle == 0 then 9 else ifx cycle == 1 then 200 else 2100)
+                defer { Capture.Release(value) }
+                if !terminal_feed_capture(*actual, cast(*void)Capture.Bytes(value), cast(s32)value.count, true) ||
+                    !terminal_feed_capture(*expected, cast(*void)Capture.Bytes(value), cast(s32)value.count, true) ||
+                    !Capture.Same(*actual, *expected) { print("Reset capture parity failed\n"); return 1 }
+                for part: 0..cast(s32)2 {
+                    Capture.Feed(*actual, "\r\ncontinued é 日本語 Á \x1b[4:3mstyle\x1b[0m")
+                    Capture.Feed(*expected, "\r\ncontinued é 日本語 Á \x1b[4:3mstyle\x1b[0m")
+                }
+                terminal_resize(*actual, 96, 30); terminal_resize(*expected, 96, 30)
+                if !Capture.Same(*actual, *expected) { print("Reset continuation/reflow parity failed\n"); return 1 }
+                passed += 1
+            }
+        }
+    }
+    terminal_close(*actual); terminal_resize(*actual, 80, 24)
+    main_cells := actual.main_cells; alt_cells := actual.alt_cells
+    history := actual.scrollback; wraps := actual.scrollback_wrapped
+    for iteration: 0..cast(s32)99 {
+        Track(0)
+        ok := terminal_reset_capture(*actual, 80, 24)
+        attempts := Stop()
+        if !ok || attempts != 0 || actual.main_cells != main_cells ||
+            actual.alt_cells != alt_cells || actual.scrollback != history || actual.scrollback_wrapped != wraps {
+            print("Equal-size capture did not reuse owned storage\n"); return 1
+        }
+    }
+    long_capture := Capture.Corpus(1, 2100)
+    defer { Capture.Release(long_capture) }
+    if !terminal_feed_capture(*actual, cast(*void)Capture.Bytes(long_capture), cast(s32)long_capture.count, true) { return 1 }
+    history = actual.scrollback; wraps = actual.scrollback_wrapped
+    for iteration: 0..cast(s32)99 {
+        Track(0)
+        ok := terminal_reset_capture(*actual, 80, 24)
+        attempts := Stop()
+        if !ok || attempts != 0 || actual.scrollback != history || actual.scrollback_wrapped != wraps ||
+            !terminal_feed_capture(*actual, cast(*void)Capture.Bytes(long_capture), cast(s32)long_capture.count, true) ||
+            actual.scrollback != history || actual.scrollback_wrapped != wraps { return 1 }
+    }
+    actual.fd = 9876
+    if terminal_reset_capture(*actual, 8, 4) || actual.fd != 9876 || actual.main_cells != main_cells { return 1 }
+    actual.fd = -1; actual.running = 1
+    if terminal_reset_capture(*actual, 8, 4) || actual.running != 1 || actual.main_cells != main_cells { return 1 }
+    actual.running = 0; actual.pid = 1234
+    if terminal_reset_capture(*actual, 8, 4) || actual.pid != 1234 || actual.main_cells != main_cells { return 1 }
+    actual.pid = 0
+    failures: s32
+    #if !#defined(PLAN9) {
+    // Every allocation failure when replacing a smaller screen preserves
+    // its entire prior state, including content and allocation ownership.
+    for failure: 1..cast(s32)7 {
+        Dirty(*actual)
+        before := actual
+        Track(failure)
+        ok := terminal_reset_capture(*actual, 96, 30)
+        unused Stop()
+        if ok || CompareRaw(cast(*void)(*actual), cast(*void)(*before), size_of(Terminal)) != 0 {
+            print("Replacement allocation failure lost state: %\n", failure); return 1
+        }
+    }
+    terminal_close(*actual); terminal_resize(*actual, 96, 30)
+    main_cells = actual.main_cells
+    Dirty(*actual); before := actual
+    Track(1)
+    ok := terminal_reset_capture(*actual, 80, 24)
+    unused Stop()
+    if ok || CompareRaw(cast(*void)(*actual), cast(*void)(*before), size_of(Terminal)) != 0 { return 1 }
+    Track(0)
+    ok = terminal_reset_capture(*actual, 80, 24)
+    attempts := Stop()
+    if !ok || attempts != 1 || actual.main_cells != main_cells { return 1 }
+    failures = 8
+    }
+    if terminal_reset_capture(null, 80, 24) { return 1 }
+    print("Capture reset passed % mixed-state/reflow cases, 200 empty/long-history reuse cycles, % allocation-failure positions and attached/null guards\n", passed, failures)
+    return 0
+}

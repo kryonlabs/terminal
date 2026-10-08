@@ -11,6 +11,7 @@ case "$suite" in
     engine) module=terminal_engine_test ;;
     feed) module=terminal_feed_probe ;;
     capture) module=terminal_capture_test ;;
+    capture-storage) module=terminal_capture_storage_test ;;
     config) module=terminal_config_test ;;
     session) module=terminal_session_test ;;
     launch) module=terminal_launch_options_test ;;
@@ -20,7 +21,7 @@ case "$suite" in
     host) module=terminal_host_test ;;
     *) echo "Unknown Terminal suite: $suite" >&2; exit 2 ;;
 esac
-unset DISPLAY WAYLAND_DISPLAY XAUTHORITY
+unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 taiji=$(CDPATH= cd -- "${TAIJI_DIR:?Set TAIJI_DIR to the canonical Taiji checkout}" && pwd)
 test -x "$taiji/q9"
 ziran=${ZIRAN:-"$root/scripts/ziran.sh"}

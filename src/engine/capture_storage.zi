@@ -1,0 +1,73 @@
+// Detached captures replace all emulator state. Reuse storage only after its
+// existing dimensions prove that every requested screen/history row fits.
+// A terminal with a PTY is never reset or closed by this operation.
+#scope_module
+#scope_export
+#program_export
+terminal_reset_capture :: (terminal: *Terminal, cols: s32, rows: s32) -> bool {
+    if terminal == null || terminal.fd >= 0 || terminal.running != 0 || terminal.pid > 0 { return false }
+    cols = terminal_clamp_int(cols, 8, MAX_COLS)
+    rows = terminal_clamp_int(rows, 4, MAX_ROWS)
+    reusable := terminal.cols >= cols && terminal.rows >= rows &&
+        terminal.main_cells != null && terminal.alt_cells != null &&
+        terminal.main_wrapped != null && terminal.alt_wrapped != null &&
+        terminal.tab_stops != null && terminal.scrollback != null &&
+        terminal.scrollback_wrapped != null && terminal.scrollback_capacity >= SCROLLBACK_LIMIT &&
+        terminal.scrollback_capacity <= SCROLLBACK_LIMIT + terminal.rows - 1
+    main_cells := terminal.main_cells; alt_cells := terminal.alt_cells
+    main_wrapped := terminal.main_wrapped; alt_wrapped := terminal.alt_wrapped
+    scrollback := terminal.scrollback; scrollback_wrapped := terminal.scrollback_wrapped
+    history_capacity := terminal.scrollback_capacity
+    tabs := terminal.tab_stops
+    if !reusable {
+        // Only storage needs a replacement, not a second large Terminal
+        // object. Prepare all buffers before changing the old capture.
+        main_cells = cast(*Cell)calloc(cast(usize)(cols * rows), size_of(Cell))
+        alt_cells = cast(*Cell)calloc(cast(usize)(cols * rows), size_of(Cell))
+        main_wrapped = cast(*u8)calloc(cast(usize)rows, 1)
+        alt_wrapped = cast(*u8)calloc(cast(usize)rows, 1)
+        tabs = cast(*u8)calloc(cast(usize)cols, 1)
+        history_capacity = SCROLLBACK_LIMIT
+        scrollback = cast(*Cell)malloc(cast(usize)history_capacity * cast(usize)cols * size_of(Cell))
+        scrollback_wrapped = cast(*u8)calloc(cast(usize)history_capacity, 1)
+        if main_cells == null || alt_cells == null || main_wrapped == null || alt_wrapped == null ||
+            tabs == null || scrollback == null || scrollback_wrapped == null {
+            free(cast(*void)main_cells); free(cast(*void)alt_cells)
+            free(cast(*void)main_wrapped); free(cast(*void)alt_wrapped)
+            free(cast(*void)tabs); free(cast(*void)scrollback); free(cast(*void)scrollback_wrapped)
+            return false
+        }
+        terminal_close(terminal)
+    } else if terminal.cols != cols {
+        // A narrower source must not retain a wider history allocation. It
+        // needs no copy because reset discards all logical history rows.
+        if history_capacity > SCROLLBACK_LIMIT { history_capacity = SCROLLBACK_LIMIT + rows - 1 }
+        replacement := cast(*Cell)malloc(cast(usize)history_capacity * cast(usize)cols * size_of(Cell))
+        if replacement == null { return false }
+        free(cast(*void)scrollback)
+        scrollback = replacement
+    }
+    // Init resets style, modes, partial UTF-8/escapes, titles, links, clipboard,
+    // palettes and capture bookkeeping exactly as closing a detached engine.
+    if reusable {
+        terminal_sixel_clear_images(terminal, -1)
+        free(cast(*void)terminal.sixel_images)
+        PaneDCS.FreeTerminalPaneDCSBuffer(*terminal.dcs)
+        terminal_init(terminal)
+    }
+    terminal.main_cells = main_cells; terminal.alt_cells = alt_cells
+    terminal.main_wrapped = main_wrapped; terminal.alt_wrapped = alt_wrapped
+    terminal.scrollback = scrollback; terminal.scrollback_wrapped = scrollback_wrapped
+    terminal.tab_stops = tabs
+    terminal.cols = cols; terminal.rows = rows; terminal.scroll_bottom = rows - 1
+    terminal.scrollback_capacity = history_capacity
+    // Discarded history is not readable; replay writes each logical row in
+    // full before increasing its count. Do not touch unused history pages.
+    terminal_clear_cell_block(terminal, main_cells)
+    terminal_clear_cell_block(terminal, alt_cells)
+    memset(cast(*void)main_wrapped, 0, cast(usize)rows)
+    memset(cast(*void)alt_wrapped, 0, cast(usize)rows)
+    memset(cast(*void)scrollback_wrapped, 0, cast(usize)history_capacity)
+    terminal_reset_tab_stops(terminal)
+    return true
+}

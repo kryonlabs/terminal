@@ -93,6 +93,14 @@ input and resize; `make terminal-capture-plan9-test` runs the same fixture in
 the native guest. `sh scripts/capture-replay.sh` measures allocation, capture
 parsing and reflow separately in C/C++ from source or saved IR.
 
+For repeated complete snapshots, `terminal_reset_capture` resets a detached
+engine while reusing compatible screen and history storage. It clears prior
+parser, mode, image and clipboard state before replay, and leaves the prior
+capture intact if replacement storage cannot be allocated. It rejects a live
+PTY or supervised process. `make terminal-capture-storage-test` checks state
+parity and allocation failures; `make terminal-capture-storage-plan9-test`
+runs the state checks from source and saved IR with native Plan 9 8c/8l.
+
 For a remote or otherwise host-managed process, set the pane's `write_input`
 callback and `input_userdata`; keyboard input is encoded by Terminal and handed to
 that callback instead of a local PTY. Hosts that capture input themselves can

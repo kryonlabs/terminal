@@ -235,6 +235,7 @@ SearchMatch :: struct { row: s32; col: s32; length: s32; }
 #load "engine/native.zi";
 #load "engine/csi.zi";
 #load "engine/capture.zi";
+#load "engine/capture_storage.zi";
 #load "engine/dcs.zi";
 #load "engine/keys.zi";
 #load "engine/modes.zi";
