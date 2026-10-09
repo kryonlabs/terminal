@@ -55,6 +55,10 @@ TerminalPane :: struct {
     colors: TerminalPaneColors
     // Rows scrolled back into the Terminal's history; 0 shows the live screen.
     scroll_offset: s32
+    // Fraction of a row between whole history steps, for precise wheel input.
+    scroll_fraction: float32
+    // Keep a short remote screen at the bottom without resizing its source.
+    align_bottom: bool
     // A host that relays keys to a process it does not own (a remote
     // session) receives the encoded bytes here instead of the Terminal's PTY.
     write_input: Keys.TerminalPaneInputWriteFn
@@ -220,7 +224,7 @@ Mix :: (from: Color, to: Color, amount: float32) -> Color {
 DrawCell :: (session: Sessions.Session, node: s32, terminal: *Engine.Terminal,
     cell: *Engine.Cell, colors: TerminalPaneColors, font: s32,
     measured: TerminalPaneMetrics, col: s32, row: s32, blink_on: bool,
-    draw_text: TerminalPaneDrawTextFn, wide: bool) {
+    draw_text: TerminalPaneDrawTextFn, wide: bool, offset_y: float32 = 0.0) {
     foreground := CellColor(terminal, cell.fg, colors.text)
     background := CellColor(terminal, cell.bg, colors.background)
     if (cell.style & Engine.STYLE_INVERSE) != 0 {
@@ -228,7 +232,7 @@ DrawCell :: (session: Sessions.Session, node: s32, terminal: *Engine.Terminal,
     }
     if (cell.style & Engine.STYLE_FAINT) != 0 { foreground = Mix(foreground, background, 0.45) }
     bounds := Rectangle.{measured.content.x + cast(float32)(col * measured.cell_width),
-        measured.content.y + cast(float32)(row * measured.line_height),
+        measured.content.y + cast(float32)(row * measured.line_height) + offset_y,
         cast(float32)measured.cell_width, cast(float32)measured.line_height}
     if wide { bounds.width *= 2.0 }
     if cell.bg != Engine.COLOR_DEFAULT || (cell.style & Engine.STYLE_INVERSE) != 0 {
@@ -318,8 +322,13 @@ DrawTerminalPane :: (session: Sessions.Session, pane: TerminalPane) -> TerminalP
     }
     first := lines - rows - back
     if first < 0 { first = 0 }
-    row: s32
-    while row < rows && row < measured.rows {
+    offset_y := pane.scroll_fraction * cast(float32)measured.line_height
+    if pane.align_bottom && pane.viewport != null && pane.viewport.main_count < rows {
+        offset_y += cast(float32)(rows - pane.viewport.main_count) * cast(float32)measured.line_height
+    }
+    row: s32 = ifx pane.scroll_fraction > 0.0 then -1 else 0
+    last := ifx pane.scroll_fraction < 0.0 then rows else rows - 1
+    while row <= last {
         col: s32
         while col < cols && col < measured.cols {
             if pane.draw_cells != null && pane.cell_width > 0 {
@@ -336,7 +345,7 @@ DrawTerminalPane :: (session: Sessions.Session, pane: TerminalPane) -> TerminalP
                     if count > 1 {
                         if visible {
                             bounds := measured.content
-                            bounds.y += cast(float32)(row * measured.line_height)
+                            bounds.y += cast(float32)(row * measured.line_height) + offset_y
                             bounds.height = cast(float32)measured.line_height
                             pane.draw_cells(session, result.node, TextView(bytes[:count]), bounds,
                                 col, measured.cell_width, font, CellColor(terminal, plain.fg, colors.text), measured.content)
@@ -350,18 +359,18 @@ DrawTerminalPane :: (session: Sessions.Session, pane: TerminalPane) -> TerminalP
                 next := PaneCell(*pane, col + 1, first + row)
                 wide := next != null && (next.style & Engine.STYLE_WIDE_CONT) != 0
                 DrawCell(session, result.node, terminal, cell, colors, font, measured,
-                    col, row, pane.blink_on, pane.draw_text, wide)
+                    col, row, pane.blink_on, pane.draw_text, wide, offset_y)
             }
             col += 1
         }
         row += 1
     }
-    if back == 0 && result.focused && pane.show_cursor && terminal.cursor_visible != 0 &&
+    if back == 0 && pane.scroll_fraction == 0.0 && result.focused && pane.show_cursor && terminal.cursor_visible != 0 &&
         (terminal.cursor_blink == 0 || pane.blink_on) &&
         cursor_col >= 0 && cursor_row >= 0 &&
         cursor_col < measured.cols && cursor_row < measured.rows {
         cursor := Rectangle.{measured.content.x + cast(float32)(cursor_col * measured.cell_width),
-            measured.content.y + cast(float32)(cursor_row * measured.line_height),
+            measured.content.y + cast(float32)(cursor_row * measured.line_height) + offset_y,
             cast(float32)measured.cell_width, cast(float32)measured.line_height}
         cursor = Geometry.RectangleIntersection(cursor, measured.content)
         if cursor.width > 0.0 && cursor.height > 0.0 {

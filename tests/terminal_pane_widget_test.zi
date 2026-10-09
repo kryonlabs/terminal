@@ -317,6 +317,44 @@ TestProjection :: (session: Sessions.Session) -> bool {
     print("Projected pane matches % complete paint plans, with source geometry/state retained and exactly-once host Unicode input\n",checked)
     return true
 }
+TestPreciseScroll :: (session: Sessions.Session) -> bool {
+    terminal: Engine.Terminal; view: Engine.TerminalViewport
+    Engine.terminal_init(*terminal); Engine.terminal_resize(*terminal,8,4)
+    defer { Engine.terminal_viewport_close(*view); Engine.terminal_close(*terminal) }
+    Feed(*terminal,"0\r\n1\r\n2\r\nP")
+    pane: Pane.TerminalPane
+    pane.key=cast(u64)204; pane.bounds=.{0.0,0.0,68.0,132.0}; pane.padding=2; pane.font_size=14
+    pane.terminal=*terminal; pane.viewport=*view; pane.focused=true; pane.show_cursor=true; pane.blink_on=true
+    measured:=Pane.MeasureTerminalPane(pane.bounds,14,2)
+    if !Engine.terminal_viewport_build_complete(*view,*terminal,measured.cols,measured.rows) { return false }
+    pane.align_bottom=true
+    Begin(session,pane.bounds); unused Pane.DrawTerminalPane(session,pane)
+    found: bool
+    for i: 0..Paint.PendingPaintCount(session)-1 {
+        command:=Paint.PendingPaintAt(session,i)
+        if command.value=="P" { found=command.y==cast(s32)measured.content.y+(measured.rows-1)*measured.line_height }
+    }
+    cursor:=Paint.PendingPaintAt(session,Paint.PendingPaintCount(session)-1)
+    if !found || cursor.bounds.y!=measured.content.y+cast(float32)((measured.rows-1)*measured.line_height) || !Finish(session) { print("Bottom alignment: found %, cursor %, rows %, main %, line %\n",found,cursor.bounds.y,measured.rows,view.main_count,measured.line_height); return false }
+    pane.bounds.height=68.0; pane.align_bottom=false; pane.show_cursor=false
+    Feed(*terminal,"\r\n4\r\n5\r\n6\r\n7")
+    measured=Pane.MeasureTerminalPane(pane.bounds,14,2)
+    if !Engine.terminal_viewport_build_complete(*view,*terminal,measured.cols,measured.rows) { return false }
+    pane.scroll_offset=1
+    Begin(session,pane.bounds); unused Pane.DrawTerminalPane(session,pane)
+    original:=Paint.PendingPaintAt(session,2)
+    original_code:=original.value[0]; original_y:=original.y
+    if !Finish(session) { return false }
+    pane.scroll_fraction=0.25
+    Begin(session,pane.bounds); unused Pane.DrawTerminalPane(session,pane)
+    found=false
+    for i: 0..Paint.PendingPaintCount(session)-1 {
+        command:=Paint.PendingPaintAt(session,i)
+        if command.value.count==1 && command.value[0]==original_code { found=command.y==original_y+measured.line_height/4 && command.clip.height==measured.content.height }
+    }
+    if !found { print("Fractional scroll: original % at %, step %, paints %\n",original_code,original_y,measured.line_height,Paint.PendingPaintCount(session)) }
+    return found && Finish(session)
+}
 #scope_export
 #program_export
 main :: () -> s32 {
@@ -326,6 +364,7 @@ main :: () -> s32 {
     if !TestFixedPitch(session) { return 18 }
     if !TestPlainRuns(session) { return 19 }
     if !TestProjection(session) { return 20 }
+    if !TestPreciseScroll(session) { return 21 }
     bounds := Rectangle.{0.0, 0.0, 68.0, 68.0}
     pane: Pane.TerminalPane
     pane.key = cast(u64)2; pane.bounds = bounds
