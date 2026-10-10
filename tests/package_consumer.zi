@@ -72,6 +72,24 @@ main :: () -> s32 {
     clipboard: Clipboard.ClipboardBuffer
     Clipboard.InitClipboardBuffer(*clipboard, Bytes("host clipboard"))
     if clipboard.length != 14 { return 8 }
+    // A host-owned session forwards the wheel only on an alternate screen:
+    // mouse-reporting applications get wheel events, others cursor keys.
+    received_size = 0
+    if Pane.TerminalPaneWheelTo(*terminal, true, 1, 1, 3, Write, null) != 0 || received_size != 0 { return 11 }
+    Feed(*terminal, "\x1b[?1049h")
+    if Pane.TerminalPaneWheelTo(*terminal, false, 1, 1, 3, Write, null) != 9 ||
+        TextView(received[0:received_size]) != "\x1b[B\x1b[B\x1b[B" { return 12 }
+    received_size = 0; Feed(*terminal, "\x1b[?1h")
+    if Pane.TerminalPaneWheelTo(*terminal, true, 1, 1, 1, Write, null) != 3 ||
+        TextView(received[0:received_size]) != "\x1bOA" { return 13 }
+    received_size = 0; Feed(*terminal, "\x1b[?1000h\x1b[?1006h")
+    if Pane.TerminalPaneWheelTo(*terminal, true, 2, 1, 3, Write, null) != 10 ||
+        TextView(received[0:received_size]) != "\x1b[<64;3;2M" { return 14 }
+    received_size = 0
+    if Pane.TerminalPaneWheelTo(*terminal, false, 99, 99, 3, Write, null) != 10 ||
+        TextView(received[0:received_size]) != "\x1b[<65;8;4M" { return 15 }
+    received_size = 0; Feed(*terminal, "\x1b[?1049l")
+    if Pane.TerminalPaneWheelTo(*terminal, true, 1, 1, 3, Write, null) != 0 { return 16 }
     // Freeing an embedded parser must not start or touch a desktop process.
     Engine.terminal_close(*terminal)
     Paint.PaintDispose(session); Tree.TreeDispose(session)

@@ -7,6 +7,7 @@ Paint :: #import "kryon/paint_queue";
 Fonts :: #import "kryon/font_metrics";
 using Engine :: #import "terminal";
 Keys :: #import "terminal_pane_keys";
+PaneMouse :: #import "terminal_pane_mouse";
 Keyboard :: #import "terminal_keyboard";
 Metrics :: #import "terminal_pane_metrics";
 using Colors :: #import "terminal_pane_profile_colors";
@@ -207,6 +208,38 @@ TerminalPaneHandleInputTo :: (terminal: *Engine.Terminal, frame: Keys.KeyboardFr
     input.userdata = cast(*void)(*sink)
     input.state = *state
     Keys.PumpTerminalPaneKeyboardInput(input, frame)
+    return sink.wrote
+}
+
+// Encodes one wheel step for a host-owned session that has no local PTY, as a
+// local terminal would: full-screen applications that asked for mouse input
+// get a wheel event at the 0-based cell, other alternate-screen applications
+// get `lines` cursor keys. Returns 0 when the wheel belongs to scrollback.
+TerminalPaneWheelTo :: (terminal: *Engine.Terminal, up: bool, col: s32, row: s32, lines: s32,
+    write_input: Keys.TerminalPaneInputWriteFn, userdata: *void) -> s32 {
+    if terminal == null || write_input == null || terminal.alternate_screen == 0 { return 0 }
+    sink: HostSink
+    sink.write = write_input; sink.userdata = userdata
+    sequence: [64]u8
+    if terminal.mouse_mode != 0 {
+        mode: PaneMouse.TerminalPaneMouseMode
+        mode.mode = terminal.mouse_mode; mode.utf8 = terminal.mouse_utf8; mode.sgr = terminal.mouse_sgr
+        mode.urxvt = terminal.mouse_urxvt; mode.pixels = terminal.mouse_pixels
+        button := cast(s32)(ifx up then PaneMouse.TERMINAL_PANE_MOUSE_WHEEL_UP else PaneMouse.TERMINAL_PANE_MOUSE_WHEEL_DOWN)
+        x := ifx col < 0 then 0 else ifx col >= terminal.cols then terminal.cols - 1 else col
+        y := ifx row < 0 then 0 else ifx row >= terminal.rows then terminal.rows - 1 else row
+        count := PaneMouse.EncodeTerminalPaneMouse(*sequence[0], cast(s32)sequence.count, button, x, y, x, y, 1, 0, 0, mode)
+        if count > 0 { unused WriteHost(cast(*void)(*sink), *sequence[0], count) }
+        return sink.wrote
+    }
+    mode: Keys.TerminalPaneKeyMode
+    mode.application_cursor_keys = terminal.application_cursor_keys
+    count := Keys.EncodeTerminalPaneKey(*sequence[0], cast(s32)sequence.count,
+        cast(s32)(ifx up then Keys.TERMINAL_PANE_KEY_UP else Keys.TERMINAL_PANE_KEY_DOWN), 0, mode)
+    if count <= 0 { return 0 }
+    for i: 1..(ifx lines < 1 then 1 else ifx lines > 16 then 16 else lines) {
+        unused WriteHost(cast(*void)(*sink), *sequence[0], count)
+    }
     return sink.wrote
 }
 
