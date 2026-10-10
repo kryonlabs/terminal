@@ -1,0 +1,63 @@
+// Balanced current-engine comparison; both modes use identical capture and
+// reflow code. Only detached-storage reset differs, with no extra cache.
+Engine :: #import "terminal";
+Cost :: #import "terminal_capture_cost_probe";
+libc :: #system_library "c";
+ReleaseCorpus :: (bytes: *void) #foreign libc "free";
+
+Measure :: (value: string, history: s32, styled: bool, cols: s32, rows: s32, run: s32, reuse: bool) -> bool {
+    terminal: Engine.Terminal; Engine.terminal_init(*terminal)
+    defer { Engine.terminal_close(*terminal) }
+    reset: Cost.Stamp; replay: Cost.Stamp; reflow: Cost.Stamp
+    digest: u64
+    for iteration: 0..cast(s32)18 {
+        start := Cost.Now()
+        if reuse {
+            if !Engine.terminal_reset_capture(*terminal, 80, 24) { return false }
+        } else {
+            Engine.terminal_close(*terminal); Engine.terminal_resize(*terminal, 80, 24)
+        }
+        ready := Cost.Now()
+        if terminal.cols != 80 || terminal.rows != 24 ||
+            !Engine.terminal_feed_capture(*terminal, cast(*void)Cost.Bytes(value), cast(s32)value.count, true) { return false }
+        terminal.cursor_col = 15; terminal.cursor_row = 23; terminal.cursor_visible = 1
+        parsed := Cost.Now()
+        Engine.terminal_resize(*terminal, cols, rows)
+        done := Cost.Now()
+        if terminal.cols != cols || terminal.rows != rows || start.wall < 0 || start.cpu < 0 ||
+            ready.wall < start.wall || ready.cpu < start.cpu || parsed.wall < ready.wall || parsed.cpu < ready.cpu ||
+            done.wall < parsed.wall || done.cpu < parsed.cpu { return false }
+        if iteration >= 3 {
+            reset.wall += ready.wall - start.wall; reset.cpu += ready.cpu - start.cpu
+            replay.wall += parsed.wall - ready.wall; replay.cpu += parsed.cpu - ready.cpu
+            reflow.wall += done.wall - parsed.wall; reflow.cpu += done.cpu - parsed.cpu
+        }
+        current := Cost.Digest(*terminal)
+        if current == 0 || (iteration > 0 && current != digest) { return false }
+        digest = current
+    }
+    print("{\"run\":%,\"reuse\":%,\"history\":%,\"styled\":%,\"view_cols\":%,\"view_rows\":%,\"iterations\":16,\"reset_cpu_ns\":%,\"reset_wall_ns\":%,\"replay_cpu_ns\":%,\"reflow_cpu_ns\":%,\"digest\":%}\n",
+        run,reuse,history,styled,cols,rows,reset.cpu,reset.wall,replay.cpu,reflow.cpu,digest)
+    return true
+}
+#program_export
+main :: () -> s32 {
+    histories: [3]s32 = .{0,500,2000}
+    for run: 0..cast(s32)3 {
+        for history: 0..cast(s32)2 {
+            for style: 0..cast(s32)1 {
+                value := Cost.Corpus(histories[history], style == 1)
+                defer { ReleaseCorpus(cast(*void)Cost.Bytes(value)) }
+                for view: 0..cast(s32)2 {
+                    cols: s32 = ifx view == 0 then 80 else ifx view == 1 then 96 else 40
+                    rows: s32 = ifx view == 1 then 30 else 24
+                    // ABBA order across four passes; each workload retains
+                    // both modes and its complete-state digest.
+                    reuse := run == 1 || run == 2
+                    if !Measure(value,histories[history],style == 1,cols,rows,run,reuse) { return 1 }
+                }
+            }
+        }
+    }
+    return 0
+}

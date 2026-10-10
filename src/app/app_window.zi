@@ -259,6 +259,8 @@ Sample :: (session: Frames.Session, now: float64, down: []s32) -> Host.DeviceFra
     result: Host.DeviceFrame
     result.now = now; result.key_fresh = true
     pointer := Runtime.PollPointer()
+    middle := Runtime.PollMiddlePointer()
+    result.middle = .{middle.down, middle.pressed, middle.released}
     Device.TreePointerUpdate(session, pointer)
     Device.TreeSecondaryPointerUpdate(session, Runtime.PollSecondaryPointer())
     #if #defined(PLAN9) {
@@ -270,8 +272,6 @@ Sample :: (session: Frames.Session, now: float64, down: []s32) -> Host.DeviceFra
         if codepoint > 0 { Device.TypedCodepointSend(session, codepoint) }
     } else {
         result.focused = Runtime.RaylibFocused()
-        middle := Runtime.PollMiddlePointer()
-        result.middle = .{middle.down, middle.pressed, middle.released}
         Device.PointerWheelSend(session, pointer.x, pointer.y, Runtime.RaylibWheelMove())
         Device.KeyboardModifiersSend(session, Runtime.RaylibModifiers())
         key := Runtime.RaylibPressedKey()

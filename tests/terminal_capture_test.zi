@@ -158,6 +158,24 @@ main :: () -> s32 {
             }
         }
     }
+    // The fused capture decoder must retain the ordinary parser's pending
+    // UTF-8 state at every split, including the maximum valid scalar. A
+    // control following the split must also see the restored full screen.
+    unicode_bytes: [13]u8 = .{194, 160, 224, 160, 128, 240, 159, 140, 191,
+        244, 143, 191, 191}
+    for split: 0..cast(s32)unicode_bytes.count {
+        for control: 0..cast(s32)1 {
+            buffer: Vec(u8)
+            BuilderPrint(*buffer, "%wrapped Á%", prefix, Text.TextFromBytes(unicode_bytes[:split]))
+            if control == 1 { BuilderPrint(*buffer, "\x1b[2;3Hoverwrite\n") }
+            value := BuilderFinish(buffer)
+            defer { Release(value) }
+            if !Check(value, 80, 24, 31, false, false) || !Check(value, 8, 4, 1, true, true) {
+                print("Capture UTF-8 split parity failed: split %, control %\n", split, control)
+                return 1
+            }
+        }
+    }
     detached: Terminal; terminal_init(*detached); terminal_resize(*detached, 80, 24)
     if !terminal_feed_capture(*detached, null, 0, true) ||
         terminal_feed_capture(*detached, null, 1, false) ||

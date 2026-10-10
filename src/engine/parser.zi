@@ -747,32 +747,39 @@ size: s32) {
         // its contiguous row span without dispatching UTF-8, charset, width
         // and cursor handling for each byte. Row edges and all special modes
         // continue through the same parser that handles transport splits.
-        if i + 1 < size && bytes[i] >= 32 && bytes[i] < 127 &&
-            terminal.parser_state == PARSER_TEXT && terminal.utf8_remaining == 0 &&
-            terminal.insert_mode == 0 && terminal.cursor_col >= 0 &&
-            terminal.cursor_col < terminal.cols && terminal.cursor_row >= 0 &&
-            terminal.cursor_row < terminal.rows &&
-            (terminal.origin_mode == 0 || (terminal.cursor_row >= terminal.scroll_top &&
-                terminal.cursor_row <= terminal.scroll_bottom)) &&
-            (ifx terminal.active_charset == 1 then terminal.g1_charset else terminal.g0_charset) != TERMINAL_CHARSET_DEC_SPECIAL {
-            cells := terminal_screen_cells(terminal)
-            if cells != null {
-                count := terminal.cols - terminal.cursor_col
-                if count > size - i { count = size - i }
-                end := i + count
-                at := terminal.cursor_row * terminal.cols + terminal.cursor_col
-                cell := terminal_blank_cell(terminal)
-                start := i
-                while i < end && bytes[i] >= 32 && bytes[i] < 127 {
-                    cell.codepoint = cast(u32)bytes[i]
-                    cells[at] = cell
-                    at += 1; i += 1
-                }
-                terminal.cursor_col += i - start
-                continue
-            }
-        }
+        consumed := feed_ascii_run(terminal, *bytes[i], size - i)
+        if consumed > 0 { i += consumed; continue }
         feed_byte(terminal, bytes[i])
         i += 1
     }
+}
+
+#scope_module
+// Captured rows and the ordinary PTY parser share the same bulk writer.
+// It consumes only complete ASCII cells before a row edge or control.
+feed_ascii_run :: (terminal: *Terminal, bytes: *u8, size: s32) -> s32 {
+    if size < 2 || bytes[0] < 32 || bytes[0] >= 127 ||
+        terminal.parser_state != PARSER_TEXT || terminal.utf8_remaining != 0 ||
+        terminal.insert_mode != 0 || terminal.cursor_col < 0 ||
+        terminal.cursor_col >= terminal.cols || terminal.cursor_row < 0 ||
+        terminal.cursor_row >= terminal.rows ||
+        (terminal.origin_mode != 0 && (terminal.cursor_row < terminal.scroll_top ||
+            terminal.cursor_row > terminal.scroll_bottom)) ||
+        (ifx terminal.active_charset == 1 then terminal.g1_charset else terminal.g0_charset) == TERMINAL_CHARSET_DEC_SPECIAL {
+        return 0
+    }
+    cells := terminal_screen_cells(terminal)
+    if cells == null { return 0 }
+    count := terminal.cols - terminal.cursor_col
+    if count > size { count = size }
+    at := terminal.cursor_row * terminal.cols + terminal.cursor_col
+    cell := terminal_blank_cell(terminal)
+    consumed: s32
+    while consumed < count && bytes[consumed] >= 32 && bytes[consumed] < 127 {
+        cell.codepoint = cast(u32)bytes[consumed]
+        cells[at] = cell
+        at += 1; consumed += 1
+    }
+    terminal.cursor_col += consumed
+    return consumed
 }

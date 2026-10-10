@@ -4,24 +4,30 @@
 // the ordinary screen/mode/escape behavior.
 #scope_module
 
-// Locate the next row boundary while validating only the text about to be
-// replayed. An unsupported control ends batching before it touches the
-// temporarily evacuated screen; the ordinary parser receives it unchanged.
-capture_text_row :: (data: *u8, count: s32) -> s32 {
+// Validate and replay each complete unit once. Unsupported controls and
+// malformed UTF-8 stop before mutation, so the ordinary parser sees them
+// after the temporarily evacuated screen has been restored.
+capture_feed_row :: (terminal: *Terminal, data: *u8, count: s32) -> s32 {
     index: s32
     while index < count {
         byte := data[index]
         if byte == 10 { return index }
         first := index
-        if byte == 27 {
+        if byte >= 32 && byte < 127 {
+            consumed := feed_ascii_run(terminal, *data[index], count - index)
+            if consumed > 0 { index += consumed; continue }
+            feed_byte(terminal, byte)
+        } else if byte == 27 {
             index += 1
             if index >= count || data[index] != 91 { return first }
             index += 1
             while index < count && ((data[index] >= 48 && data[index] <= 57) ||
                 data[index] == 59 || data[index] == 58) { index += 1 }
             if index >= count || data[index] != 109 { return first }
+            terminal_feed(terminal, cast(*void)(*data[first]), index - first + 1)
         } else if byte < 32 {
             if byte != 7 && byte != 8 && byte != 9 && byte != 13 { return first }
+            feed_byte(terminal, byte)
         } else if byte >= 127 {
             // Reject incomplete, noncanonical and C1 encodings before
             // mutation. The full parser owns their replacement semantics.
@@ -38,6 +44,8 @@ capture_text_row :: (data: *u8, count: s32) -> s32 {
             if codepoint < minimum || codepoint > 0x10ffff ||
                 (codepoint >= 0xd800 && codepoint <= 0xdfff) ||
                 (codepoint >= 0x80 && codepoint <= 0x9f) { return first }
+            feed_codepoint(terminal, codepoint)
+            terminal.utf8_codepoint = 0
         }
         index += 1
     }
@@ -162,10 +170,10 @@ trim_final_linefeed: bool) -> bool {
     start: s32; index: s32
     while index < count {
         if terminal.capture_batch {
-            index += capture_text_row(*bytes[index], count - index)
+            index += capture_feed_row(terminal, *bytes[index], count - index)
+            start = index
             if index == count { break }
             if bytes[index] != 10 {
-                if index > start { terminal_feed(terminal, cast(*void)(*bytes[start]), index - start) }
                 capture_finish(terminal)
                 start = index
                 // From this byte onward, preserve the existing full parser
