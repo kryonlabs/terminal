@@ -433,7 +433,7 @@ main :: () -> s32 {
     #if #defined(PLAN9) {
         shell = Bytes("/bin/rc")
     } else {
-        shell = Environment(Bytes("T9_TEST_SHELL"))
+        shell = Environment(Bytes("TERMINAL_TEST_SHELL"))
     }
     if Engine.terminal_spawn(*terminal, Bytes("/"), shell, Bytes("exec cat"), 8, 4) == 0 { return 12 }
     pane.bounds = bounds; pane.padding = 2; pane.focused = true; pane.handle_input = true

@@ -53,7 +53,7 @@ Shell :: () -> string {
     #if #defined(PLAN9) {
         return "/bin/rc"
     } else {
-        return Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("T9_TEST_SHELL")))
+        return Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("TERMINAL_TEST_SHELL")))
     }
 }
 Application :: () -> *State.State {

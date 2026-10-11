@@ -25,8 +25,8 @@ if test "$target" = plan9-c; then
     exit 0
 fi
 
-jobs=${T9_BUILD_JOBS:-1}
-case "$jobs" in 1|2|3|4) ;; *) echo 'T9_BUILD_JOBS must be between 1 and 4' >&2; exit 2 ;; esac
+jobs=${TERMINAL_BUILD_JOBS:-1}
+case "$jobs" in 1|2|3|4) ;; *) echo 'TERMINAL_BUILD_JOBS must be between 1 and 4' >&2; exit 2 ;; esac
 if test -n "${RAYLIB_A:-}"; then
     raylib_archive=$RAYLIB_A
 else
@@ -41,13 +41,12 @@ test -f "$raylib_archive"
 if test "$target" = c; then compiler=${CC:-cc}; standard=c11; extension=c
 else compiler=${CXX:-c++}; standard=c++17; extension=cpp; fi
 mkdir -p "$output/bin"
-temporary=$(mktemp "$output/bin/t9.XXXXXX")
+temporary=$(mktemp "$output/bin/terminal.XXXXXX")
 trap 'rm -f "$temporary"' EXIT HUP INT TERM
 "$compiler" -std="$standard" -O1 -ffunction-sections -fdata-sections \
     -I"$generated" "$generated"/*."$extension" -Wl,--gc-sections "$raylib_archive" \
     $(pkg-config --libs sdl2) -lGL -ldl -lpthread -lm -o "$temporary"
 chmod 755 "$temporary"
-mv "$temporary" "$output/bin/t9"
-ln -sfn t9 "$output/bin/terminal"
+mv "$temporary" "$output/bin/terminal"
 trap - EXIT HUP INT TERM
-echo "Terminal executable: $output/bin/t9"
+echo "Terminal executable: $output/bin/terminal"

@@ -22,11 +22,11 @@ for form in source saved; do
     if test "$form" = saved; then input=$work/ir/terminal_engine_test.zir; fi
     "$ziran" build --project $lock_flags --target=c --entry "$entry" \
         --exe -o "$work/$form-c" "$input"
-    T9_TEST_SHELL="$work/shell" timeout --kill-after=2s 10s "$work/$form-c/terminal_engine_test"
+    TERMINAL_TEST_SHELL="$work/shell" timeout --kill-after=2s 10s "$work/$form-c/terminal_engine_test"
     "$ziran" build --project $lock_flags --target=cpp --entry "$entry" \
         -o "$work/$form-cpp" "$input"
     "${CXX:-c++}" -std=c++17 -O2 -I"$work/$form-cpp" \
         "$work/$form-cpp"/*.cpp -o "$work/$form-cpp/run"
-    T9_TEST_SHELL="$work/shell" timeout --kill-after=2s 10s "$work/$form-cpp/run"
+    TERMINAL_TEST_SHELL="$work/shell" timeout --kill-after=2s 10s "$work/$form-cpp/run"
 done
 echo 'Terminal engine source and saved IR passed C and C++ execution'

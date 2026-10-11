@@ -137,9 +137,9 @@ EffectiveScrollback :: (config: *Types.TerminalPaneProfileSettings) -> s32 {
 
 ResolvePath :: (xdg: string, home: string, plan9: bool, output: []u8) -> string {
     root := home
-    suffix := "/.config/t9/config"
-    if plan9 { suffix = "/lib/t9/config" }
-    else if xdg != "" { root = xdg; suffix = "/t9/config" }
+    suffix := "/.config/terminal/config"
+    if plan9 { suffix = "/lib/terminal/config" }
+    else if xdg != "" { root = xdg; suffix = "/terminal/config" }
     if root == "" || root.count + suffix.count >= output.count { return "" }
     used: s64
     for index: cast(s64)0..root.count - 1 { output[used] = root[index]; used += 1 }

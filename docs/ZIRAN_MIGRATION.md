@@ -51,7 +51,7 @@ host sync/flush, paste callback routing, and scroll reset behavior.
 
 The standalone application now uses only the current `.zi` implementation.
 Rill's legacy desktop entrypoint still calls the removed Kryon C host API and
-must migrate to the package's `t9/app_host` export. Independent pane checks do
+must migrate to the package's `terminal/app_host` export. Independent pane checks do
 not certify that integration or a native whole-application graphical session.
 
 `terminal_clipboard.zi` owns clipboard bytes, OSC52 queries and writes, and
@@ -143,7 +143,7 @@ hyperlink tables, and preserving newest rows while changing a wrapped history
 ring's limit. Screen/history allocation replaces buffers only after success;
 width changes allocate a fresh history ring even when the previous ring is empty.
 
-`make terminal-native` builds `libt9_terminal.a` with all generated native
+`make terminal-native` builds `libterminal.a` with all generated native
 dependencies. `make terminal-plan9-c` emits the corresponding Plan 9 library
 sources. These library gates do not establish a working complete application.
 
@@ -340,7 +340,7 @@ fresh versus repeated keys. Closing a modal consumes its complete device
 frame. Polling updates metadata, bell feedback and clipboard writes, retains
 hold behavior and reports when the last child exits. Embedded views use the
 containing application's installed theme rules. Hosts can import the
-package's `t9/app_host` export; Terminal code remains in this repository.
+package's `terminal/app_host` export; Terminal code remains in this repository.
 
 `make host-test` checks source and saved-IR execution in C and C++;
 `make host-plan9-test` checks actual native Plan 9 8c/8l execution. They use

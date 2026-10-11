@@ -37,12 +37,12 @@ path, terminal, compiler, kryon = sys.argv[1:]
 toolchain = str(pathlib.Path(compiler).parents[2])
 pathlib.Path(path).write_text('[overrides]\n' + ''.join(
     f'{name} = {json.dumps(value)}\n'
-    for name, value in [('ziran', toolchain), ('t9', terminal), ('kryon', kryon)]))
+    for name, value in [('ziran', toolchain), ('terminal', terminal), ('kryon', kryon)]))
 PY
 cd "$work"
-"$compiler" add https://github.com/kryonlabs/terminal.git --name t9
+"$compiler" add https://github.com/kryonlabs/terminal.git --name terminal
 consumer_flags=
-if test "${T9_PACKAGE_LOCKED:-0}" = 1; then
+if test "${TERMINAL_PACKAGE_LOCKED:-0}" = 1; then
     # Test committed Git objects rather than local work in progress.
     rm ziran.local.toml
     consumer_flags=--locked
@@ -50,10 +50,10 @@ fi
 python3 - <<'PY'
 import json
 lock = json.load(open('ziran.lock'))
-print('t9 consumer dependency:', next(p['commit'] for p in lock['packages'] if p['name'] == 't9'))
+print('terminal consumer dependency:', next(p['commit'] for p in lock['packages'] if p['name'] == 'terminal'))
 PY
 "$compiler" check --project $consumer_flags src/consumer.zi
-printf '%s\n' '#import "t9/terminal_pane_render"' > src/private.zi
+printf '%s\n' '#import "terminal/terminal_pane_render"' > src/private.zi
 if "$compiler" check --project $consumer_flags src/private.zi > private.log 2>&1; then
     echo 'An external host imported a private Terminal module' >&2
     exit 1

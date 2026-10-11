@@ -8,14 +8,14 @@ with reduced source and saved-IR runs in C and C++.
 GUI benchmarks always create their own Xvfb display, remove inherited desktop
 and session variables, and use a controlled child shell. Window lookup requires
 the launched process's PID. The default binary is the canonical local
-`build/linux-<arch>/bin/t9`; `T9_BENCH_BIN` selects another explicit binary.
+`build/linux-<arch>/bin/terminal`; `TERMINAL_BENCH_BIN` selects another explicit binary.
 Results are disposable under `build/benchmarks/results/` by default.
 
 ```sh
 make all
-KTREM_BENCH_TERMINALS=t9 benchmarks/run-terminal-benchmarks.sh
-benchmarks/run-terminal-benchmarks.sh /tmp/t9-bench 60 0 1 startup
-benchmarks/run-terminal-benchmarks.sh /tmp/t9-bench 60 0 1 live_resize
+KTREM_BENCH_TERMINALS=terminal benchmarks/run-terminal-benchmarks.sh
+benchmarks/run-terminal-benchmarks.sh /tmp/terminal-bench 60 0 1 startup
+benchmarks/run-terminal-benchmarks.sh /tmp/terminal-bench 60 0 1 live_resize
 ```
 
 Arguments select output directory, active FPS, PTY burst milliseconds, number

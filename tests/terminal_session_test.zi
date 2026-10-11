@@ -121,12 +121,12 @@ CheckStore :: () -> bool {
     if !Store.SaveFile(sessions[0:0], 99, "session-fixture/tabs") ||
         Store.LoadFile(records[:], *active, "session-fixture/tabs") != 0 || active != 0 { return false }
     path: [1024]u8
-    if Store.ResolvePath("/state", "/home/user", false, path[:]) != "/state/t9/session" ||
-        Store.ResolvePath("", "/home/user", false, path[:]) != "/home/user/.local/state/t9/session" ||
-        Store.ResolvePath("/state", "/usr/user", true, path[:]) != "/usr/user/lib/t9/session" ||
+    if Store.ResolvePath("/state", "/home/user", false, path[:]) != "/state/terminal/session" ||
+        Store.ResolvePath("", "/home/user", false, path[:]) != "/home/user/.local/state/terminal/session" ||
+        Store.ResolvePath("/state", "/usr/user", true, path[:]) != "/usr/user/lib/terminal/session" ||
         Store.ResolvePath("", "", false, path[:]) != "" { return false }
     host_path := Store.Path(path[:])
-    if host_path != "" && (host_path.count < 11 || host_path[host_path.count - 11:host_path.count] != "/t9/session") {
+    if host_path != "" && (host_path.count < 17 || host_path[host_path.count - 17:host_path.count] != "/terminal/session") {
         return false
     }
     number: [64]u8
@@ -146,7 +146,7 @@ CheckProcess :: () -> bool {
     #if #defined(PLAN9) {
         shell = "/bin/rc"
     } else {
-        shell = Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("T9_TEST_SHELL")))
+        shell = Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("TERMINAL_TEST_SHELL")))
     }
     if !Sessions.Open(*original, "/", shell, "exec cat", 8, 4, 3000) { return false }
     moved := original
@@ -175,7 +175,7 @@ CheckExecute :: () -> bool {
     #if #defined(PLAN9) {
         plan9 = true; shell = "/bin/rc"
     } else {
-        shell = Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("T9_TEST_SHELL")))
+        shell = Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("TERMINAL_TEST_SHELL")))
     }
     if !Launch.JoinExecuteCommand(arguments[:], command[:], plan9) { return false }
     session: Sessions.Session

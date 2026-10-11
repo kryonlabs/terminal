@@ -28,7 +28,7 @@ libc :: #system_library "c";
     Environment :: (name: *s8) -> *s8 #foreign libc "getenv";
     PauseHost :: (microseconds: u32) -> s32 #foreign libc "usleep";
     Pause :: (milliseconds: s32) { PauseHost(cast(u32)(milliseconds * 1000)) }
-    Shell :: () -> string { return Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("T9_TEST_SHELL"))) }
+    Shell :: () -> string { return Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("TERMINAL_TEST_SHELL"))) }
     EchoCommand :: () -> string { return "stty raw -echo; exec /bin/cat" }
     ExitCommand :: () -> string { return "printf done" }
 }
@@ -40,7 +40,7 @@ Failure :: (message: string) -> bool { print("Terminal host: %\n", message); ret
 Bounds :: () -> Geometry.Rectangle { return .{0.0, 0.0, 400.0, 240.0} }
 Open :: (host: *Host.Host, command: string = "", hold: bool = false,
     embedded: bool = true) -> bool {
-    args: [7]string = .{"t9", "--shell", Shell(), "--command", command, "--title", "fixture"}
+    args: [7]string = .{"terminal", "--shell", Shell(), "--command", command, "--title", "fixture"}
     error: [256]u8
     parsed := Host.Prepare(host, args[:], error[:], false, embedded)
     if parsed != Launch.ParseResult.ParseOk { return Failure("prepare controlled child") }
@@ -93,13 +93,13 @@ CheckPreparation :: () -> bool {
     host: Host.Host
     defer Host.Close(*host)
     error: [256]u8
-    help: [2]string = .{"t9", "--help"}
+    help: [2]string = .{"terminal", "--help"}
     if Host.Prepare(*host, help[:], error[:], false) != Launch.ParseResult.ParseHelp ||
         host.prepared || host.started || Host.Start(*host, Bounds()) || host.app.session_count != 0 {
         return Failure("help started a child")
     }
     if !Host.Close(*host) || host.app != null || !Host.Close(*host) { return Failure("idempotent close") }
-    invalid: [3]string = .{"t9", "--geometry", "bad"}
+    invalid: [3]string = .{"terminal", "--geometry", "bad"}
     if Host.Prepare(*host, invalid[:], error[:], false) != Launch.ParseResult.ParseError ||
         error[0] == 0 || Host.Start(*host, Bounds()) || host.app.session_count != 0 {
         return Failure("invalid options started a child")
@@ -245,7 +245,7 @@ CheckPersistence :: () -> bool {
     Records.SetTitle(*host.app.sessions[0], "restored host")
     host.persist = true
     if !Host.Close(*host, "host-fixture.sessions") || host.app != null { return Failure("close saved sessions") }
-    args: [3]string = .{"t9", "--shell", Shell()}
+    args: [3]string = .{"terminal", "--shell", Shell()}
     error: [256]u8
     if Host.Prepare(*host, args[:], error[:], false) != Launch.ParseResult.ParseOk { return false }
     host.persist = true

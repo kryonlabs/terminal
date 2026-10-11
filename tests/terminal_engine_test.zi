@@ -328,7 +328,7 @@ ChildProcess :: () -> s32 {
         shell = Bytes("/bin/rc")
         command = "echo ENGINE_CHILD_OK; input=`{read}; echo GOT:$\"input"
     } else {
-        shell = Environment(Bytes("T9_TEST_SHELL"))
+        shell = Environment(Bytes("TERMINAL_TEST_SHELL"))
         if shell == null { return 81 }
         command = "printf 'ENGINE_CHILD_OK\\r\\n'; read input; printf 'GOT:%s' \"$input\""
     }

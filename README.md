@@ -19,7 +19,7 @@ maintained in Ziran. `make` generates native C from the current `.zi`
 entrypoint and links Kryon's Raylib backend over SDL2. The build needs a C/C++
 compiler, CMake, pkg-config, SDL2 and OpenGL development files. Raylib's source
 is resolved from the Git-backed package lock. Builds default to one job;
-`T9_BUILD_JOBS` may select up to four.
+`TERMINAL_BUILD_JOBS` may select up to four.
 
 `standalone-window-test` runs the actual executable on a private Xvfb display.
 It checks CLI routes, a rendered window, real child-process input, held and
@@ -53,7 +53,7 @@ rendered glyphs on its owned offscreen target. It runs through private Xvfb
 and the bounded guest. This new gate remains unverified because the sandbox
 blocks the guest filesystem connection; native graphical input, font fallback
 and Rill's actual embedded integration remain migration gates.
-Rill can import `t9/app_host`; its integration must own the surrounding frame,
+Rill can import `terminal/app_host`; its integration must own the surrounding frame,
 device input and window operations.
 
 ## Embedding as a Ziran package
@@ -61,16 +61,16 @@ device input and window operations.
 Terminal is also a Git-backed Ziran package. Add it to an existing application:
 
 ```sh
-ziran add https://github.com/kryonlabs/terminal.git --name t9
-ziran pkg list t9
+ziran add https://github.com/kryonlabs/terminal.git --name terminal
+ziran pkg list terminal
 ```
 
 Commit the generated `ziran.lock` with the application's manifest. Use
-`#import "t9/terminal"` for the parser, `Terminal`/`Cell` state, scrollback and
-owned PTY lifecycle, and `#import "t9/terminal_pane_widget"` for
+`#import "terminal/terminal"` for the parser, `Terminal`/`Cell` state, scrollback and
+owned PTY lifecycle, and `#import "terminal/terminal_pane_widget"` for
 `TerminalPane` and `DrawTerminalPane`. The pane accepts the host's existing
 Kryon session and bounds; it creates no window, event loop or application
-configuration. `t9/app_host` is available when embedding the complete tabbed
+configuration. `terminal/app_host` is available when embedding the complete tabbed
 Terminal application instead of a single pane.
 
 Initialize each state with `terminal_init`, then either `terminal_spawn` for
@@ -108,8 +108,8 @@ call `TerminalPaneHandleInputTo` with a `KeyboardFrame`. Set `scroll_offset`
 to the number of history rows above the live screen (zero follows the live
 screen); cells retain their ANSI colors and styles while drawing history.
 
-The package also exports `t9/terminal_keyboard`, `t9/terminal_pane_keys`,
-`t9/terminal_pane_profile_colors` and `t9/terminal_clipboard` for hosts that
+The package also exports `terminal/terminal_keyboard`, `terminal/terminal_pane_keys`,
+`terminal/terminal_pane_profile_colors` and `terminal/terminal_clipboard` for hosts that
 manage input frames, protocol encoding, colors or clipboard routing directly.
 Internal parser modules remain private. Applications should use the same
 locked Kryon dependency as Terminal so their session and geometry types are shared.
@@ -117,16 +117,16 @@ Local application overrides may name the canonical `kryonlabs/terminal` checkout
 in an ignored `ziran.local.toml`; no source copies or sibling module paths are
 needed in application code.
 
-`make package-test` adds Terminal by its public HTTPS URL to a generated consumer,
+`make package-test` adds Terminal by its HTTPS URL to a generated consumer,
 then compiles and runs package-qualified imports in C and C++ from source and
 saved IR. It checks Unicode/ANSI parsing, pane painting through the host's
 Kryon session, keyboard encoding and clipboard storage without a desktop
 display. The consumer has its own module roots and checks that Terminal's
 private modules stay unavailable through package-qualified imports.
-`T9_PACKAGE_LOCKED=1 make package-test` checks committed Git packages with
+`TERMINAL_PACKAGE_LOCKED=1 make package-test` checks committed Git packages with
 `--locked` after generating the consumer's dependency lock.
 
-`make install` installs the `terminal` command (with the compatible `t9` command) and a desktop launcher named Terminal.
+`make install` installs the `terminal` command and a desktop launcher named Terminal.
 The default `PREFIX` is `~/.local`; `DESTDIR` supports staged packaging.
 `install-test` checks a disposable staged installation.
 
@@ -189,8 +189,8 @@ command-line specs. `--drop-down` starts a borderless top-of-screen terminal
 window. `--window` is accepted as a separator and currently opens another tab
 because Terminal does not have multi-window process/server support yet.
 
-Config is read from `$XDG_CONFIG_HOME/t9/config` or
-`~/.config/t9/config`:
+Config is read from `$XDG_CONFIG_HOME/terminal/config` or
+`~/.config/terminal/config`:
 
 ```ini
 font_size=16
@@ -212,8 +212,8 @@ literal backslashes.
 Terminal restores open tabs on startup when no command is configured, including
 the active tab plus each tab's working directory, shell, command, scroll
 position, and manual title override. The restore file lives under
-`$XDG_STATE_HOME/t9/session`
-or `~/.local/state/t9/session`.
+`$XDG_STATE_HOME/terminal/session`
+or `~/.local/state/terminal/session`.
 
 Terminal chrome and default terminal foreground/background/cursor colors follow
 the Kryon system theme. Explicit profile colors and OSC color changes stay in
@@ -334,19 +334,10 @@ Terminal graphics:
 - Erase-line, erase-display, reset, alternate-screen clear, scrolling, and
   scrollback eviction keep sixel images attached to the terminal content.
 
-## Name and repository compatibility
+## Name and repository
 
-The app is **Terminal** and its canonical checkout is `kryonlabs/terminal`.
-The GitHub organization transfer/rename is a separate remote operation; local
-source and references are prepared for that destination. No push or transfer
-is implied by this source change.
-
-The Ziran package/import identifier remains `t9` so existing consumers keep
-working; use `--name t9` when adding the new repository URL. The configuration
-(`~/.config/t9/config`, Plan 9 `/lib/t9/config`), saved sessions
-(`~/.local/state/t9/session`), existing `t9` executable, Debian package ID,
-`t9.desktop`/icon IDs, `T9_*` build/test variables and Plan 9 `open t9` host
-protocol are retained. The preferred `terminal` command is an alias to the
-same executable. Harmony and Rill retain their saved `t9` app/host IDs.
-Showcase slugs and existing banner paths stay stable for inbound links.
-Release asset names and all visible app labels use Terminal.
+The app is **Terminal**: its private repository is `kryonlabs/terminal`, its
+Ziran package and import prefix is `terminal`, and its command, desktop
+launcher, configuration (`~/.config/terminal/config`, Plan 9
+`/lib/terminal/config`) and saved sessions (`~/.local/state/terminal/session`)
+use the same name.

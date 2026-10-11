@@ -61,11 +61,11 @@ def close_window(window, pid, env):
 
 
 def main():
-    assert os.environ.get("T9_PRIVATE_XVFB") == "1", "Run through the private Xvfb test target"
+    assert os.environ.get("TERMINAL_PRIVATE_XVFB") == "1", "Run through the private Xvfb test target"
     display = os.environ["DISPLAY"]
     authority = os.environ["XAUTHORITY"]
     binary = str(Path(sys.argv[1]).resolve())
-    with tempfile.TemporaryDirectory(prefix="t9-window-", dir="build/ziran") as directory:
+    with tempfile.TemporaryDirectory(prefix="terminal-window-", dir="build/ziran") as directory:
         work = Path(directory).resolve()
         shell = work / "shell"
         shell.write_text('#!/bin/sh\nexec /bin/sh -c "$2"\n')

@@ -129,7 +129,7 @@ ForwardToRill :: () -> bool {
             if value == "" { continue }
             file := Files.OpenWrite(value)
             if !file.valid { return false }
-            request := "open t9\n"
+            request := "open terminal\n"
             size := Files.FileSize(file)
             if size < 0 { size = 0 }
             written := Files.WriteAt(file, ByteView(request), size)

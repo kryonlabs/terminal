@@ -9,13 +9,13 @@ PREFIX ?= $(HOME)/.local
 BINDIR ?= $(PREFIX)/bin
 APPDIR ?= $(PREFIX)/share/applications
 INSTALL ?= install
-APP := $(BUILD_DIR)/bin/t9
+APP := $(BUILD_DIR)/bin/terminal
 SOURCES := $(wildcard src/*.zi src/app/*.zi src/engine/*.zi src/terminal_pane/*.zi)
 PACKAGE_INPUTS := ziran.toml ziran.lock $(wildcard ziran.local.toml)
 TERMINAL_GEN := $(BUILD_DIR)/generated/terminal
-TERMINAL_LIB := $(BUILD_DIR)/lib/libt9_terminal.a
+TERMINAL_LIB := $(BUILD_DIR)/lib/libterminal.a
 PANE_GEN := $(BUILD_DIR)/generated/pane
-PANE_LIB := $(BUILD_DIR)/lib/libt9_pane.a
+PANE_LIB := $(BUILD_DIR)/lib/libterminal_pane.a
 PTY_GEN := $(BUILD_DIR)/generated/pty
 PLAN9_PREP_DIR := $(BUILD_ROOT)/plan9
 PLAN9_GENERATED := $(PLAN9_PREP_DIR)/generated
@@ -33,13 +33,13 @@ run: $(APP)
 standalone-window-test: $(APP)
 	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
 		LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
-		env T9_PRIVATE_XVFB=1 python3 tests/standalone_window_test.py "$(APP)"
+		env TERMINAL_PRIVATE_XVFB=1 python3 tests/standalone_window_test.py "$(APP)"
 
 .PHONY: independent-window-test
 independent-window-test: $(APP)
 	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
 		LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
-		env T9_PRIVATE_XVFB=1 python3 tests/independent_windows_test.py "$(APP)"
+		env TERMINAL_PRIVATE_XVFB=1 python3 tests/independent_windows_test.py "$(APP)"
 
 standalone-test: $(APP)
 	ZIRAN="$(ZIRAN)" RAYLIB_A="$(if $(RAYLIB_A),$(RAYLIB_A),$(abspath $(BUILD_DIR))/raylib/raylib/libraylib.a)" sh tests/standalone_test.sh
@@ -56,7 +56,7 @@ standalone-plan9-graphics-test:
 		env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
 			ZIRAN="$(ZIRAN)" LP_NUM_THREADS=1 OMP_NUM_THREADS=1 \
 			xvfb-run -a -s '-screen 0 1024x768x24' \
-			env T9_PRIVATE_XVFB=1 sh tests/standalone_plan9_test.sh "$$form" graphics; \
+			env TERMINAL_PRIVATE_XVFB=1 sh tests/standalone_plan9_test.sh "$$form" graphics; \
 	done
 
 parser-replay:
@@ -250,24 +250,22 @@ reflow-cursor-test:
 
 install: $(APP)
 	mkdir -p "$(DESTDIR)$(BINDIR)" "$(DESTDIR)$(APPDIR)"
-	$(INSTALL) -m 755 "$(APP)" "$(DESTDIR)$(BINDIR)/t9"
-	ln -sfn t9 "$(DESTDIR)$(BINDIR)/terminal"
+	$(INSTALL) -m 755 "$(APP)" "$(DESTDIR)$(BINDIR)/terminal"
 	{ \
 		printf '%s\n' '[Desktop Entry]' 'Type=Application' 'Name=Terminal'; \
 		printf '%s\n' 'Comment=Kryon terminal emulator' 'Exec=$(BINDIR)/terminal'; \
 		printf '%s\n' 'Icon=utilities-terminal' 'Terminal=false' 'Categories=System;TerminalEmulator;'; \
-		printf '%s\n' 'Keywords=terminal;shell;t9;' 'StartupNotify=true'; \
-	} > "$(DESTDIR)$(APPDIR)/t9.desktop"
+		printf '%s\n' 'Keywords=terminal;shell;' 'StartupNotify=true'; \
+	} > "$(DESTDIR)$(APPDIR)/terminal.desktop"
 	if command -v update-desktop-database >/dev/null 2>&1; then update-desktop-database "$(DESTDIR)$(APPDIR)"; fi
 
 install-test: $(APP)
 	@set -eu; mkdir -p build/ziran; stage=$$(mktemp -d "$(CURDIR)/build/ziran/install.XXXXXX"); \
 		trap 'rm -rf "$$stage"' EXIT HUP INT TERM; \
 		$(MAKE) --no-print-directory install DESTDIR="$$stage" PREFIX=/usr; \
-		test -x "$$stage/usr/bin/t9"; test -x "$$stage/usr/bin/terminal"; test -f "$$stage/usr/share/applications/t9.desktop"; \
-		env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY "$$stage/usr/bin/t9" --version | grep -qx "Terminal 0.1"; \
+		test -x "$$stage/usr/bin/terminal"; test -f "$$stage/usr/share/applications/terminal.desktop"; \
 		env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY "$$stage/usr/bin/terminal" --version | grep -qx "Terminal 0.1"; \
-		if command -v desktop-file-validate >/dev/null 2>&1; then desktop-file-validate "$$stage/usr/share/applications/t9.desktop"; fi
+		if command -v desktop-file-validate >/dev/null 2>&1; then desktop-file-validate "$$stage/usr/share/applications/terminal.desktop"; fi
 
 pty-plan9-c:
 	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY $(ZIRAN) build --project $(LOCK_FLAGS) \

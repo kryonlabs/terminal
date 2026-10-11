@@ -35,13 +35,13 @@ if ! flock -n 9; then
     exit 1
 fi
 work=$(mktemp -d "$root/build/ziran/$suite-native.XXXXXX")
-stage=$(mktemp -d "$taiji/usr/glenda/tmp/t9-$suite.XXXXXX")
+stage=$(mktemp -d "$taiji/usr/glenda/tmp/terminal-$suite.XXXXXX")
 guest_stage=/usr/glenda/tmp/${stage##*/}
 # QEMU otherwise reserves a 1 GB translation buffer even for these small
 # one-CPU fixtures. Keep the test VM within its explicit memory budget.
 cat > "$work/qemu" <<'QEMU'
 #!/bin/sh
-exec "$T9_PLAN9_QEMU" -accel tcg,tb-size=32 "$@"
+exec "$TERMINAL_PLAN9_QEMU" -accel tcg,tb-size=32 "$@"
 QEMU
 chmod 700 "$work/qemu"
 qemu_binary=${QEMU:-qemu-system-x86_64}
@@ -64,37 +64,37 @@ failed=0
 for(suite in source saved) {
     if(~ \$failed 0) {
         cd $guest_stage/\$suite
-        echo t9-$suite-plan9-compile \$suite
+        echo terminal-$suite-plan9-compile \$suite
         for(source in *.c) {
             if(! 8c -FTVw \$source) {
-                echo t9-$suite-plan9-compile-failed
+                echo terminal-$suite-plan9-compile-failed
                 failed=1
             }
         }
         if(~ \$failed 0) {
             if(8l -o run *.8) {
-                echo t9-$suite-plan9-running \$suite
-                if(./run) echo t9-$suite-plan9-suite-ok \$suite
+                echo terminal-$suite-plan9-running \$suite
+                if(./run) echo terminal-$suite-plan9-suite-ok \$suite
                 if not {
-                    echo t9-$suite-plan9-run-failed \$status
+                    echo terminal-$suite-plan9-run-failed \$status
                     failed=1
                 }
             }
             if not {
-                echo t9-$suite-plan9-link-failed
+                echo terminal-$suite-plan9-link-failed
                 failed=1
             }
         }
     }
 }
-if(~ \$failed 0) echo t9-$suite-plan9-ok
+if(~ \$failed 0) echo terminal-$suite-plan9-ok
 fshalt
 "
 log=$work/native-plan9.log
-timeout=${T9_PLAN9_TIMEOUT:-120}
+timeout=${TERMINAL_PLAN9_TIMEOUT:-120}
 setsid --wait env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY Q9_BOOT_TIMEOUT="$timeout" Q9_TMPDIR="$work" \
-    Q9_MEM="${T9_PLAN9_MEMORY:-256M}" Q9_SMP=1 Q9_CHECKPOINT=0 Q9_BUILD_DESKTOP=0 \
-    T9_PLAN9_QEMU="$qemu_binary" QEMU="$work/qemu" \
+    Q9_MEM="${TERMINAL_PLAN9_MEMORY:-256M}" Q9_SMP=1 Q9_CHECKPOINT=0 Q9_BUILD_DESKTOP=0 \
+    TERMINAL_PLAN9_QEMU="$qemu_binary" QEMU="$work/qemu" \
     "$taiji/q9" --raw tty-run "$command" >"$log" 2>&1 &
 vm_pid=$!
 stop_vm() {
@@ -104,14 +104,14 @@ stop_vm() {
 trap 'stop_vm; cleanup' EXIT HUP INT TERM
 start=$(date +%s)
 while test "$(( $(date +%s) - start ))" -lt "$timeout"; do
-    if rg -q "^t9-$suite-plan9-ok" "$log"; then
+    if rg -q "^terminal-$suite-plan9-ok" "$log"; then
         stop_vm
         cp "$log" "$root/build/ziran/$suite-native-plan9.log"
         trap cleanup EXIT HUP INT TERM
         echo "Terminal $suite source and saved IR passed native Plan 9 8c/8l execution"
         exit 0
     fi
-    if rg -q "^t9-$suite-plan9-(compile|link|run)-failed|Operation not permitted|cannot init 9P|can.t init 9P" "$log"; then
+    if rg -q "^terminal-$suite-plan9-(compile|link|run)-failed|Operation not permitted|cannot init 9P|can.t init 9P" "$log"; then
         tail -50 "$log" >&2
         exit 1
     fi

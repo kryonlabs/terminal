@@ -152,8 +152,8 @@ TerminalPtyOpen :: (cwd: *u8, shell: *u8, command: *u8, cols: s32, rows: s32, ou
     session := *sessions[slot]
     session.* = Session.{}
     generation += 1
-    if !Path("/tmp/t9.", Pid(), generation, ".out", session.spool[:]) ||
-       !Path("/tmp/t9.", Pid(), generation, ".done", session.done[:]) {
+    if !Path("/tmp/terminal.", Pid(), generation, ".out", session.spool[:]) ||
+       !Path("/tmp/terminal.", Pid(), generation, ".done", session.done[:]) {
         Close(input[0]); Close(input[1]); Close(output[0]); Close(output[1]); return -1
     }
     Remove(cast(*s8)(*session.done[0]))

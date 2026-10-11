@@ -189,7 +189,7 @@ Resize :: (terminal: *Terminal) {
 #program_export
 main :: () -> s32 {
     // Reduced runs verify all workloads without turning tests into benchmarks.
-    setting := "T9_BENCH_DIVISOR"
+    setting := "TERMINAL_BENCH_DIVISOR"
     descriptor := cast(*Text.TextDescriptor)(*setting)
     value := Text.TextFromCString(Environment(descriptor.data))
     if value != "" {

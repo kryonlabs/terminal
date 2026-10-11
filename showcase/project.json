@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "slug": "t9",
+  "slug": "terminal",
   "name": "Terminal",
   "summary": "Native terminal application with sessions, tabs, and focused developer workflows.",
   "repository": {

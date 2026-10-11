@@ -46,9 +46,9 @@ ReadLine :: (line: *u8, length: s32, records: []Pane.TerminalPaneSessionRecord,
 #scope_export
 ResolvePath :: (xdg: string, home: string, plan9: bool, output: []u8) -> string {
     root := home
-    suffix := "/.local/state/t9/session"
-    if plan9 { suffix = "/lib/t9/session" }
-    else if xdg != "" { root = xdg; suffix = "/t9/session" }
+    suffix := "/.local/state/terminal/session"
+    if plan9 { suffix = "/lib/terminal/session" }
+    else if xdg != "" { root = xdg; suffix = "/terminal/session" }
     if root == "" || root.count + suffix.count >= output.count { return "" }
     used: s64
     Put(output, *used, root); Put(output, *used, suffix)

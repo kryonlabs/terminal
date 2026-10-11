@@ -25,4 +25,4 @@ if test "$target" = c; then compiler=${CC:-cc}; standard=c11; extension=c
 else compiler=${CXX:-c++}; standard=c++17; extension=cpp; fi
 "$compiler" -std="$standard" -O2 -I"$work/generated" \
     "$work/generated"/*."$extension" -o "$work/run"
-timeout --kill-after=2s "${T9_BENCH_TIMEOUT:-30}s" "$work/run"
+timeout --kill-after=2s "${TERMINAL_BENCH_TIMEOUT:-30}s" "$work/run"

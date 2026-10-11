@@ -30,7 +30,7 @@ libc :: #system_library "c";
     Environment :: (name: *s8) -> *s8 #foreign libc "getenv";
     PauseHost :: (microseconds: u32) -> s32 #foreign libc "usleep";
     Pause :: (milliseconds: s32) { PauseHost(cast(u32)(milliseconds * 1000)) }
-    Shell :: () -> string { return Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("T9_TEST_SHELL"))) }
+    Shell :: () -> string { return Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("TERMINAL_TEST_SHELL"))) }
 }
 Bytes :: (value: string) -> *u8 {
     descriptor := cast(*Text.TextDescriptor)(*value)

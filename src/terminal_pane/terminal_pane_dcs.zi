@@ -9,9 +9,9 @@ TerminalPaneDCSBuffer :: struct {
 }
 
 #scope_file
-t9_host :: #system_library "c";
-ReallocHost :: (pointer: *u8, size: usize) -> *u8 #foreign t9_host "realloc";
-FreeHost :: (pointer: *u8) #foreign t9_host "free";
+terminal_host :: #system_library "c";
+ReallocHost :: (pointer: *u8, size: usize) -> *u8 #foreign terminal_host "realloc";
+FreeHost :: (pointer: *u8) #foreign terminal_host "free";
 
 HexValue :: (value: u8) -> s32 {
     if value >= 48 && value <= 57 { return cast(s32)value - 48 }

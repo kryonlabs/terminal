@@ -1,5 +1,5 @@
 [package]
-name = "t9"
+name = "terminal"
 entry = "src/app/app_main.zi"
 module_roots = ["src", "src/app", "src/terminal_pane", "tests", "benchmarks"]
 

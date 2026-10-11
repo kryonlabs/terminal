@@ -1,10 +1,10 @@
 // External host: every Terminal import goes through its public package API.
-Engine :: #import "t9/terminal";
-Pane :: #import "t9/terminal_pane_widget";
-Keys :: #import "t9/terminal_pane_keys";
-Keyboard :: #import "t9/terminal_keyboard";
-Colors :: #import "t9/terminal_pane_profile_colors";
-Clipboard :: #import "t9/terminal_clipboard";
+Engine :: #import "terminal/terminal";
+Pane :: #import "terminal/terminal_pane_widget";
+Keys :: #import "terminal/terminal_pane_keys";
+Keyboard :: #import "terminal/terminal_keyboard";
+Colors :: #import "terminal/terminal_pane_profile_colors";
+Clipboard :: #import "terminal/terminal_clipboard";
 Sessions :: #import "kryon/session";
 Tree :: #import "kryon/tree";
 Frame :: #import "kryon/Frame";
@@ -43,7 +43,7 @@ main :: () -> s32 {
     first := Engine.terminal_cell(*terminal, 0, 0)
     if first.codepoint != 65 || first.combining != 769 || first.fg != 1 ||
         Engine.terminal_cell(*terminal, 1, 0).codepoint != 30028 { return 2 }
-    // Direct Kryon imports and t9's transitive Kryon types must agree.
+    // Direct Kryon imports and Terminal's transitive Kryon types must agree.
     session := Sessions.SessionOpen()
     bounds := Rectangle.{0.0, 0.0, 68.0, 68.0}
     if cast(s32)Frame.BeginFrame(session, cast(u64)1, bounds) != 0 { return 3 }
@@ -94,6 +94,6 @@ main :: () -> s32 {
     Engine.terminal_close(*terminal)
     Paint.PaintDispose(session); Tree.TreeDispose(session)
     if !Sessions.SessionClose(session) { return 9 }
-    print("t9 package: parser, Unicode paint, shared Kryon session, keyboard and clipboard passed\n")
+    print("terminal package: parser, Unicode paint, shared Kryon session, keyboard and clipboard passed\n")
     return 0
 }

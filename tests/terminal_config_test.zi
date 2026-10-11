@@ -59,9 +59,9 @@ Cases :: () -> s32 {
        Config.EffectiveScrollback(null) != 5000 { return 1 }
     if Config.Apply(*config, Bytes("font_size"), Bytes("99")) != 0 || config.font_size != 16 { return 2 }
     path: [1024]u8
-    if Config.ResolvePath("/xdg", "/owner", false, path[:]) != "/xdg/t9/config" ||
-       Config.ResolvePath("", "/owner", false, path[:]) != "/owner/.config/t9/config" ||
-       Config.ResolvePath("/ignored", "/owner", true, path[:]) != "/owner/lib/t9/config" ||
+    if Config.ResolvePath("/xdg", "/owner", false, path[:]) != "/xdg/terminal/config" ||
+       Config.ResolvePath("", "/owner", false, path[:]) != "/owner/.config/terminal/config" ||
+       Config.ResolvePath("/ignored", "/owner", true, path[:]) != "/owner/lib/terminal/config" ||
        Config.ResolvePath("", "", false, path[:]) != "" ||
        Config.ResolvePath("/xdg", "/owner", false, path[0:5]) != "" { return 3 }
     values: [26]Case = .[
@@ -124,7 +124,7 @@ Cases :: () -> s32 {
 main :: () -> s32 {
     host_path: [1024]u8
     actual := Config.Path(host_path[:])
-    if actual != "" && (actual.count < 10 || actual[actual.count - 10:actual.count] != "/t9/config") { return 13 }
+    if actual != "" && (actual.count < 16 || actual[actual.count - 16:actual.count] != "/terminal/config") { return 13 }
     result := Cases()
     if result != 0 { print("Terminal configuration failure %\n", result) }
     else { print("Terminal configuration behavior passed\n") }

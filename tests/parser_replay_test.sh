@@ -9,7 +9,7 @@ work=$(mktemp -d "$root/build/ziran/parser-replay-test.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 for form in source saved; do
     for target in c cpp; do
-        T9_BENCH_DIVISOR=100 sh scripts/parser-replay.sh "$target" "$form" > "$work/results"
+        TERMINAL_BENCH_DIVISOR=100 sh scripts/parser-replay.sh "$target" "$form" > "$work/results"
         python3 - "$work/results" <<'PY'
 import json
 import sys

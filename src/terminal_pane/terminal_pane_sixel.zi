@@ -35,9 +35,9 @@ TerminalPaneSixelBuilder :: struct {
 }
 
 #scope_file
-t9_host :: #system_library "c";
-MallocHost :: (size: usize) -> *u8 #foreign t9_host "malloc";
-FreeHost :: (pointer: *u8) #foreign t9_host "free";
+terminal_host :: #system_library "c";
+MallocHost :: (size: usize) -> *u8 #foreign terminal_host "malloc";
+FreeHost :: (pointer: *u8) #foreign terminal_host "free";
 
 ClampInt :: (value: s32, low: s32, high: s32) -> s32 {
     if value < low { return low }

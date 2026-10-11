@@ -28,10 +28,10 @@ def owned_windows(app, env):
 
 
 def main():
-    assert os.environ.get("T9_PRIVATE_XVFB") == "1", "Run through the private Xvfb test target"
+    assert os.environ.get("TERMINAL_PRIVATE_XVFB") == "1", "Run through the private Xvfb test target"
     binary = str(Path(sys.argv[1]).resolve())
     Path("build/ziran").mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="t9-independent-", dir="build/ziran") as directory:
+    with tempfile.TemporaryDirectory(prefix="terminal-independent-", dir="build/ziran") as directory:
         work = Path(directory).resolve()
         runtime = work / "runtime"
         runtime.mkdir(mode=0o700)
@@ -46,7 +46,7 @@ def main():
         # Isolate the legacy runtime's singleton lock as well as the display.
         # A failing old executable can only replace a window from this fixture.
         socket = str(work / "tmux.sock")
-        sessions = ("t9-test-window-first", "t9-test-window-second")
+        sessions = ("terminal-test-window-first", "terminal-test-window-second")
         outputs = [work / (name + ".bytes") for name in sessions]
         apps = []
         logs = []

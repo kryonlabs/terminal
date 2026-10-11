@@ -46,7 +46,7 @@ CloseChild :: (descriptor: s32, pid: s32) {
 
 #program_export
 main :: () -> s32 {
-    shell := Environment(Bytes("T9_TEST_SHELL"))
+    shell := Environment(Bytes("TERMINAL_TEST_SHELL"))
     if shell == null { return 99 }
     path: [128]u8
     if !TerminalChildPath(":/plan9/bin:/usr/bin::", "/plan9", path[:]) || Text.TextFromCString(*path[0]) != ":/usr/bin::" { return 16 }

@@ -22,11 +22,11 @@ for form in source saved; do
     if test "$form" = saved; then input=$work/ir/terminal_session_test.zir; fi
     "$ziran" build --project $lock_flags --target=c --entry "$entry" \
         --exe -o "$work/$form-c" "$input"
-    (cd "$work/$form-c" && T9_TEST_SHELL="$work/shell" timeout --kill-after=2s 15s ./terminal_session_test)
+    (cd "$work/$form-c" && TERMINAL_TEST_SHELL="$work/shell" timeout --kill-after=2s 15s ./terminal_session_test)
     "$ziran" build --project $lock_flags --target=cpp --entry "$entry" \
         -o "$work/$form-cpp" "$input"
     "${CXX:-c++}" -std=c++17 -O1 -I"$work/$form-cpp" \
         "$work/$form-cpp"/*.cpp -o "$work/$form-cpp/run"
-    (cd "$work/$form-cpp" && T9_TEST_SHELL="$work/shell" timeout --kill-after=2s 15s ./run)
+    (cd "$work/$form-cpp" && TERMINAL_TEST_SHELL="$work/shell" timeout --kill-after=2s 15s ./run)
 done
 echo 'Terminal sessions source and saved IR passed C/C++ metadata, persistence and real child I/O'

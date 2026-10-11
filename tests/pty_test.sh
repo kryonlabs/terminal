@@ -23,11 +23,11 @@ for input in source saved; do
     if test "$input" = saved; then module=$work/ir/terminal_pty_linux_test.zir; fi
     "$ziran" build --project $lock_flags --target=c --entry "$entry" \
         --exe -o "$work/$input-c" "$module"
-    T9_TEST_SHELL="$work/shell" timeout --kill-after=2s 10s "$work/$input-c/terminal_pty_linux_test"
+    TERMINAL_TEST_SHELL="$work/shell" timeout --kill-after=2s 10s "$work/$input-c/terminal_pty_linux_test"
     "$ziran" build --project $lock_flags --target=cpp --entry "$entry" \
         -o "$work/$input-cpp" "$module"
     "${CXX:-c++}" -std=c++17 -O2 -I"$work/$input-cpp" "$work/$input-cpp"/*.cpp \
         -o "$work/$input-cpp/test"
-    T9_TEST_SHELL="$work/shell" timeout --kill-after=2s 10s "$work/$input-cpp/test"
+    TERMINAL_TEST_SHELL="$work/shell" timeout --kill-after=2s 10s "$work/$input-cpp/test"
 done
 echo 'Terminal Linux PTY source and saved IR passed C and C++ execution'

@@ -13,7 +13,7 @@ leaves the previous viewport and source unchanged; the caller must wait for a
 successful rebuild before displaying a changed source.
 
 ```ziran
-Engine :: #import "t9/terminal";
+Engine :: #import "terminal/terminal";
 view: Engine.TerminalViewport;
 defer { Engine.terminal_viewport_close(*view) }
 if !Engine.terminal_viewport_build(*view, source, display_cols, display_rows) {

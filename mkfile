@@ -2,7 +2,7 @@
 
 # Build Ziran's generated native Plan 9 application with current Kryon Libdraw.
 # Run `make plan9-c` on the host after changing the maintained .zi source.
-TARG=t9
+TARG=terminal
 BIN=/$objtype/bin
 GEN=build/plan9/generated
 LIST=build/plan9/generated-c-files.txt
