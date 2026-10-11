@@ -1,0 +1,28 @@
+#import "terminal_drop"
+
+Cases :: () -> s32 {
+    // A dropped path pastes single-quoted with a separating space, quotes
+    // inside escaped; control bytes and paths that do not fit are refused.
+    dropped: [64]u8
+    if DroppedPathText("/home/wao/My Folder", dropped[:]) != "'/home/wao/My Folder' " { return 1 }
+    if DroppedPathText("/tmp/it's here", dropped[:]) != "'/tmp/it'\\''s here' " { return 2 }
+    if DroppedPathText("/tmp/a\nrm -rf", dropped[:]) != "" ||
+       DroppedPathText("/tmp/tab\there", dropped[:]) != "" ||
+       DroppedPathText("/tmp/del\x7f", dropped[:]) != "" { return 3 }
+    if DroppedPathText("", dropped[:]) != "" { return 4 }
+    if DroppedPathText("/a/path/that/is/clearly/longer/than/the/sixty/four/byte/buffer/holding/it",
+        dropped[:]) != "" { return 5 }
+    tiny: [4]u8
+    if DroppedPathText("/", tiny[:]) != "'/' " || DroppedPathText("/a", tiny[:]) != "" { return 6 }
+    // UTF-8 names pass through unchanged.
+    if DroppedPathText("/home/wao/Música", dropped[:]) != "'/home/wao/Música' " { return 7 }
+    return 0
+}
+
+#program_export
+main :: () -> s32 {
+    result := Cases()
+    if result != 0 { print("terminal-drop-test-failed: %\n", result) }
+    else { print("terminal-drop-test-ok\n") }
+    return result
+}

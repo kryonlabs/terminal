@@ -1,0 +1,36 @@
+// Files and folders dropped on a terminal become the text a file manager
+// drop pastes. Hosts deliver the dropped path; Terminal decides its input.
+
+// The path in single quotes, each ' inside written as '\'', then a space so
+// several drops stay separate words. A path with a control byte, such as a
+// newline that would act as Enter, is refused with "", as is one that does
+// not fit in output.
+#program_export
+DroppedPathText :: (path: string, output: []u8) -> string {
+    if path.count <= 0 { return "" }
+    used: s64 = 0
+    limit: s64 = output.count
+    if limit < 3 { return "" }
+    output[used] = 39
+    used += 1
+    for index: cast(s64)0..path.count - 1 {
+        byte := path[index]
+        if byte < 32 || byte == 127 { return "" }
+        if byte == 39 {
+            if used + 4 + 2 > limit { return "" }
+            output[used] = 39
+            output[used + 1] = 92
+            output[used + 2] = 39
+            output[used + 3] = 39
+            used += 4
+        } else {
+            if used + 1 + 2 > limit { return "" }
+            output[used] = byte
+            used += 1
+        }
+    }
+    output[used] = 39
+    output[used + 1] = 32
+    used += 2
+    return TextView(output[0:used])
+}

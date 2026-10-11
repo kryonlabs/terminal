@@ -451,6 +451,7 @@ No display or owner shell startup is needed. Native output is disposable under
 - `src/terminal_pane/terminal_pane_osc.zi`
 - `src/terminal_pane/terminal_pane_metrics.zi`
 - `src/terminal_clipboard.zi`
+- `src/terminal_drop.zi`
 - `src/terminal_pty_linux.zi`
 - `src/terminal_pty_plan9.zi`
 - `src/terminal.zi` and its loaded `src/engine/*.zi` modules

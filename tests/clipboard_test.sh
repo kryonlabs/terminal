@@ -10,6 +10,7 @@ suite=${1:-clipboard}
 case "$suite" in
     clipboard|selection) module=terminal_pane_${suite}_test ;;
     protocol) module=terminal_clipboard_test ;;
+    drop) module=terminal_drop_test ;;
     *) echo "Unknown clipboard suite: $suite" >&2; exit 2 ;;
 esac
 mkdir -p build/ziran

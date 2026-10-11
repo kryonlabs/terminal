@@ -111,6 +111,10 @@ screen); cells retain their ANSI colors and styles while drawing history.
 The package also exports `terminal/terminal_keyboard`, `terminal/terminal_pane_keys`,
 `terminal/terminal_pane_profile_colors` and `terminal/terminal_clipboard` for hosts that
 manage input frames, protocol encoding, colors or clipboard routing directly.
+`terminal/terminal_drop` turns a file or folder a host received from a drag
+and drop into the text to write as input: `DroppedPathText` single-quotes the
+path (escaping quotes inside), adds a separating space, and refuses paths with
+control characters such as a newline.
 Internal parser modules remain private. Applications should use the same
 locked Kryon dependency as Terminal so their session and geometry types are shared.
 Local application overrides may name the canonical `kryonlabs/terminal` checkout

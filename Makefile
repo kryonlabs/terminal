@@ -81,6 +81,7 @@ ziran-migration-check:
 clipboard-test:
 	sh tests/clipboard_test.sh clipboard
 	sh tests/clipboard_test.sh protocol
+	sh tests/clipboard_test.sh drop
 
 clipboard-protocol-test:
 	sh tests/clipboard_test.sh protocol
