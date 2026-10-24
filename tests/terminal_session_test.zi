@@ -6,21 +6,13 @@ Types :: #import "terminal_pane_profile_types";
 Text :: #import "std/byte_text_linux";
 Host :: #import "terminal_clipboard_host";
 Launch :: #import "app_launch_options";
-#if #defined(PLAN9) {
-    File :: #import "std/file_plan9";
-} else {
-    File :: #import "std/file_linux";
-}
+File :: #import "std/file_linux";
 
 #scope_file
 libc :: #system_library "c";
-#if #defined(PLAN9) {
-    Pause :: (milliseconds: s32) -> s32 #foreign libc "sleep";
-} else {
-    Environment :: (name: *s8) -> *s8 #foreign libc "getenv";
-    PauseHost :: (microseconds: u32) -> s32 #foreign libc "usleep";
-    Pause :: (milliseconds: s32) { PauseHost(cast(u32)(milliseconds * 1000)) }
-}
+Environment :: (name: *s8) -> *s8 #foreign libc "getenv";
+PauseHost :: (microseconds: u32) -> s32 #foreign libc "usleep";
+Pause :: (milliseconds: s32) { PauseHost(cast(u32)(milliseconds * 1000)) }
 Bytes :: (value: string) -> *u8 {
     descriptor := cast(*Text.TextDescriptor)(*value)
     return descriptor.data
@@ -121,10 +113,9 @@ CheckStore :: () -> bool {
     if !Store.SaveFile(sessions[0:0], 99, "session-fixture/tabs") ||
         Store.LoadFile(records[:], *active, "session-fixture/tabs") != 0 || active != 0 { return false }
     path: [1024]u8
-    if Store.ResolvePath("/state", "/home/user", false, path[:]) != "/state/terminal/session" ||
-        Store.ResolvePath("", "/home/user", false, path[:]) != "/home/user/.local/state/terminal/session" ||
-        Store.ResolvePath("/state", "/usr/user", true, path[:]) != "/usr/user/lib/terminal/session" ||
-        Store.ResolvePath("", "", false, path[:]) != "" { return false }
+    if Store.ResolvePath("/state", "/home/user", path[:]) != "/state/terminal/session" ||
+        Store.ResolvePath("", "/home/user", path[:]) != "/home/user/.local/state/terminal/session" ||
+        Store.ResolvePath("", "", path[:]) != "" { return false }
     host_path := Store.Path(path[:])
     if host_path != "" && (host_path.count < 17 || host_path[host_path.count - 17:host_path.count] != "/terminal/session") {
         return false
@@ -143,11 +134,7 @@ CheckProcess :: () -> bool {
     original: Sessions.Session
     // Opening a fresh zero-initialized record must not close stdin.
     shell: string
-    #if #defined(PLAN9) {
-        shell = "/bin/rc"
-    } else {
-        shell = Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("TERMINAL_TEST_SHELL")))
-    }
+    shell = Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("TERMINAL_TEST_SHELL")))
     if !Sessions.Open(*original, "/", shell, "exec cat", 8, 4, 3000) { return false }
     moved := original
     Sessions.Init(*original)
@@ -171,13 +158,8 @@ CheckProcess :: () -> bool {
 CheckExecute :: () -> bool {
     arguments: [3]string = .{"echo", "a b", "c'd"}
     command: [1024]u8
-    plan9: bool; shell: string
-    #if #defined(PLAN9) {
-        plan9 = true; shell = "/bin/rc"
-    } else {
-        shell = Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("TERMINAL_TEST_SHELL")))
-    }
-    if !Launch.JoinExecuteCommand(arguments[:], command[:], plan9) { return false }
+    shell := Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("TERMINAL_TEST_SHELL")))
+    if !Launch.JoinExecuteCommand(arguments[:], command[:]) { return false }
     session: Sessions.Session
     if !Sessions.Open(*session, "/", shell, Value(command[:]), 80, 4, 100) { return false }
     defer Sessions.Close(*session)

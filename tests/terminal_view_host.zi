@@ -60,3 +60,9 @@ RasterImage :: (path: string, id: u32, source: Rectangle, destination: Rectangle
     if image_path_length > 64 { image_path_length = 64 }
     for index: 0..image_path_length - 1 { image_path[index] = path[index] }
 }
+#program_export
+RasterImageMesh :: (path: string, id: u32, source: Rectangle, points: []Vector2, columns: s32,
+    rows: s32, clip: Rectangle, tint: Color) {
+    unused path; unused id; unused source; unused points; unused columns
+    unused rows; unused clip; unused tint
+}

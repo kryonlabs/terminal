@@ -8,9 +8,8 @@ mkdir -p build/ziran
 work=$(mktemp -d "$root/build/ziran/parser-replay-test.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 for form in source saved; do
-    for target in c cpp; do
-        TERMINAL_BENCH_DIVISOR=100 sh scripts/parser-replay.sh "$target" "$form" > "$work/results"
-        python3 - "$work/results" <<'PY'
+    TERMINAL_BENCH_DIVISOR=100 sh scripts/parser-replay.sh c "$form" > "$work/results"
+    python3 - "$work/results" <<'PY'
 import json
 import sys
 
@@ -34,6 +33,5 @@ for result in results:
     assert (result["lines"], result["bytes"]) == expected[result["workload"]], result
     assert isinstance(result["elapsed_ms"], int) and result["elapsed_ms"] >= 0, result
 PY
-    done
 done
-echo 'All 13 Terminal parser workloads retain their payloads in source/saved-IR C/C++ runs'
+echo 'All 13 Terminal parser workloads retain their payloads in source/saved-IR C runs'

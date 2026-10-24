@@ -17,11 +17,9 @@ TERMINAL_LIB := $(BUILD_DIR)/lib/libterminal.a
 PANE_GEN := $(BUILD_DIR)/generated/pane
 PANE_LIB := $(BUILD_DIR)/lib/libterminal_pane.a
 PTY_GEN := $(BUILD_DIR)/generated/pty
-PLAN9_PREP_DIR := $(BUILD_ROOT)/plan9
-PLAN9_GENERATED := $(PLAN9_PREP_DIR)/generated
 ZIRAN_MIGRATION_TEST := tests/ziran_migration_test.sh
 
-.PHONY: all run test clean install install-test standalone-test standalone-window-test standalone-plan9-test standalone-plan9-graphics-test plan9-c pty-native parser-replay parser-replay-test package-test
+.PHONY: all run test clean install install-test standalone-test standalone-window-test pty-native parser-replay parser-replay-test package-test
 all: $(APP)
 
 $(APP): $(SOURCES) $(PACKAGE_INPUTS) scripts/build.sh scripts/ziran.sh Makefile
@@ -44,21 +42,6 @@ independent-window-test: $(APP)
 standalone-test: $(APP)
 	ZIRAN="$(ZIRAN)" RAYLIB_A="$(if $(RAYLIB_A),$(RAYLIB_A),$(abspath $(BUILD_DIR))/raylib/raylib/libraylib.a)" sh tests/standalone_test.sh
 
-plan9-c:
-	ZIRAN="$(ZIRAN)" sh scripts/build.sh plan9-c "$(PLAN9_PREP_DIR)"
-
-standalone-plan9-test:
-	ZIRAN="$(ZIRAN)" sh tests/standalone_plan9_test.sh source
-	ZIRAN="$(ZIRAN)" sh tests/standalone_plan9_test.sh saved
-
-standalone-plan9-graphics-test:
-	@set -eu; for form in source saved; do \
-		env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
-			ZIRAN="$(ZIRAN)" LP_NUM_THREADS=1 OMP_NUM_THREADS=1 \
-			xvfb-run -a -s '-screen 0 1024x768x24' \
-			env TERMINAL_PRIVATE_XVFB=1 sh tests/standalone_plan9_test.sh "$$form" graphics; \
-	done
-
 parser-replay:
 	ZIRAN="$(ZIRAN)" sh scripts/parser-replay.sh
 
@@ -77,7 +60,7 @@ ziran-migration-check:
 	$(ZIRAN_MIGRATION_TEST)
 
 # Module fixtures use isolated host effects and never need a desktop display.
-.PHONY: clipboard-test clipboard-protocol-test clipboard-plan9-test selection-test selection-plan9-test keys-test keys-plan9-test osc-test osc-plan9-test metrics-test metrics-plan9-test pty-test pty-plan9-test pane-ziran-test clipboard-plan9-c
+.PHONY: clipboard-test clipboard-protocol-test selection-test keys-test osc-test metrics-test pty-test pane-ziran-test
 clipboard-test:
 	sh tests/clipboard_test.sh clipboard
 	sh tests/clipboard_test.sh protocol
@@ -86,62 +69,31 @@ clipboard-test:
 clipboard-protocol-test:
 	sh tests/clipboard_test.sh protocol
 
-clipboard-plan9-test:
-	sh tests/pane_plan9_test.sh clipboard
-	sh tests/pane_plan9_test.sh protocol
-
 selection-test:
 	sh tests/clipboard_test.sh selection
-
-selection-plan9-test:
-	sh tests/pane_plan9_test.sh selection
 
 keys-test:
 	sh tests/keys_test.sh
 
-keys-plan9-test:
-	sh tests/pane_plan9_test.sh keys
-
 osc-test:
 	sh tests/osc_test.sh
-
-osc-plan9-test:
-	sh tests/pane_plan9_test.sh osc
 
 metrics-test:
 	sh tests/metrics_test.sh
 
-metrics-plan9-test:
-	sh tests/pane_plan9_test.sh metrics
-
 pty-test:
 	sh tests/pty_test.sh
 
-pty-plan9-test:
-	sh tests/pane_plan9_test.sh pty
-
-.PHONY: terminal-test terminal-plan9-test terminal-feed-plan9-test terminal-native terminal-plan9-c config-test config-plan9-test
+.PHONY: terminal-test terminal-native config-test
 config-test:
 	sh tests/config_test.sh
-
-config-plan9-test:
-	sh tests/pane_plan9_test.sh config
 
 terminal-test:
 	sh tests/terminal_engine_test.sh
 
-terminal-plan9-test:
-	sh tests/pane_plan9_test.sh engine
-
-terminal-feed-plan9-test:
-	sh tests/pane_plan9_test.sh feed
-
-.PHONY: terminal-capture-test terminal-capture-plan9-test terminal-capture-storage-test terminal-capture-storage-plan9-test reflow-span-test terminal-viewport-test terminal-viewport-plan9-test
+.PHONY: terminal-capture-test terminal-capture-storage-test reflow-span-test terminal-viewport-test
 terminal-viewport-test:
 	sh tests/terminal_viewport_test.sh
-
-terminal-viewport-plan9-test:
-	sh tests/pane_plan9_test.sh viewport
 
 terminal-capture-test:
 	sh tests/terminal_capture_test.sh
@@ -149,14 +101,8 @@ terminal-capture-test:
 terminal-capture-storage-test:
 	sh tests/terminal_capture_storage_test.sh
 
-terminal-capture-storage-plan9-test:
-	sh tests/pane_plan9_test.sh capture-storage
-
 reflow-span-test:
 	sh tests/reflow_span_test.sh
-
-terminal-capture-plan9-test:
-	sh tests/pane_plan9_test.sh capture
 
 terminal-native:
 	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY $(ZIRAN) build --project $(LOCK_FLAGS) \
@@ -168,16 +114,9 @@ terminal-native:
 	rm -f $(TERMINAL_LIB)
 	$(AR) rcs $(TERMINAL_LIB) $(TERMINAL_GEN)/*.o
 
-terminal-plan9-c:
-	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY $(ZIRAN) build --project $(LOCK_FLAGS) \
-		--target=plan9-c --no-main -o $(PLAN9_GENERATED)/terminal src/terminal.zi
-
-.PHONY: widget-test widget-plan9-test profile-test session-test session-plan9-test launch-test launch-plan9-test pane-native pane-plan9-c
+.PHONY: widget-test profile-test session-test launch-test pane-native
 widget-test:
 	sh tests/widget_test.sh
-
-widget-plan9-test:
-	sh tests/pane_plan9_test.sh widget
 
 profile-test:
 	sh tests/profile_test.sh
@@ -185,14 +124,8 @@ profile-test:
 session-test:
 	sh tests/session_test.sh
 
-session-plan9-test:
-	sh tests/pane_plan9_test.sh session
-
 launch-test:
 	sh tests/launch_options_test.sh
-
-launch-plan9-test:
-	sh tests/pane_plan9_test.sh launch
 
 pane-native:
 	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY $(ZIRAN) build --project $(LOCK_FLAGS) \
@@ -204,41 +137,20 @@ pane-native:
 	rm -f $(PANE_LIB)
 	$(AR) rcs $(PANE_LIB) $(PANE_GEN)/*.o
 
-pane-plan9-c:
-	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY $(ZIRAN) build --project $(LOCK_FLAGS) \
-		--target=plan9-c --no-main -o $(PLAN9_GENERATED)/pane src/terminal_pane/terminal_pane_widget.zi
-
-.PHONY: application-test application-plan9-test input-test input-plan9-test view-test view-plan9-test host-test host-plan9-test
+.PHONY: application-test input-test view-test host-test
 application-test:
 	ZIRAN="$(ZIRAN)" sh tests/application_test.sh
-
-application-plan9-test:
-	ZIRAN="$(ZIRAN)" sh tests/pane_plan9_test.sh application
 
 input-test:
 	ZIRAN="$(ZIRAN)" sh tests/application_test.sh input
 
-input-plan9-test:
-	ZIRAN="$(ZIRAN)" sh tests/pane_plan9_test.sh input
-
 view-test:
 	ZIRAN="$(ZIRAN)" sh tests/application_test.sh view
-
-view-plan9-test:
-	ZIRAN="$(ZIRAN)" sh tests/pane_plan9_test.sh view
 
 host-test:
 	ZIRAN="$(ZIRAN)" sh tests/application_test.sh host
 
-host-plan9-test:
-	ZIRAN="$(ZIRAN)" sh tests/pane_plan9_test.sh host
-
 pane-ziran-test: terminal-test terminal-capture-test terminal-capture-storage-test reflow-span-test config-test widget-test profile-test session-test launch-test application-test input-test view-test host-test clipboard-test selection-test keys-test osc-test metrics-test pty-test ziran-migration-check
-
-clipboard-plan9-c:
-	env -u DISPLAY -u WAYLAND_DISPLAY $(ZIRAN) build --project $(LOCK_FLAGS) --target=plan9-c \
-		--root tests \
-		-o $(BUILD_ROOT)/plan9/clipboard-test tests/terminal_pane_clipboard_test.zi
 
 package-test:
 	ZIRAN="$(ZIRAN)" sh tests/package_test.sh
@@ -267,10 +179,6 @@ install-test: $(APP)
 		test -x "$$stage/usr/bin/terminal"; test -f "$$stage/usr/share/applications/terminal.desktop"; \
 		env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY "$$stage/usr/bin/terminal" --version | grep -qx "Terminal 0.1"; \
 		if command -v desktop-file-validate >/dev/null 2>&1; then desktop-file-validate "$$stage/usr/share/applications/terminal.desktop"; fi
-
-pty-plan9-c:
-	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY $(ZIRAN) build --project $(LOCK_FLAGS) \
-		--target=plan9-c --no-main --prune-stale -o $(PLAN9_GENERATED)/pty src/terminal_pty_plan9.zi
 
 clean:
 	rm -rf "$(BUILD_ROOT)"

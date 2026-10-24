@@ -13,13 +13,8 @@ Pipe :: (descriptors: *s32) -> s32 #foreign libc "pipe";
 Read :: (descriptor: s32, bytes: *void, size: usize) -> isize #foreign libc "read";
 Close :: (descriptor: s32) -> s32 #foreign libc "close";
 Environment :: (name: *u8) -> *u8 #foreign libc "getenv";
-#if #defined(PLAN9) {
-    Transport :: #import "terminal_pty_plan9";
-    Pause :: (milliseconds: s32) -> s32 #foreign libc "sleep";
-} else {
-    PauseHost :: (microseconds: u32) -> s32 #foreign libc "usleep";
-    Pause :: (milliseconds: s32) { PauseHost(cast(u32)milliseconds * 1000) }
-}
+PauseHost :: (microseconds: u32) -> s32 #foreign libc "usleep";
+Pause :: (milliseconds: s32) { PauseHost(cast(u32)milliseconds * 1000) }
 
 Bytes :: (text: string) -> *u8 {
     descriptor := cast(*Text.TextDescriptor)(*text)
@@ -48,41 +43,23 @@ Reset :: (terminal: *Terminal, cols: s32 = 12, rows: s32 = 4) {
 }
 
 OpenSink :: (terminal: *Terminal) -> s32 {
-    #if #defined(PLAN9) {
-        // Use a supervised transport session: Plan 9 deliberately refuses
-        // writes and closes for arbitrary descriptors it does not own.
-        if terminal_spawn(terminal, Bytes("/"), Bytes("/bin/rc"),
-                          Bytes("exec cat"), terminal.cols, terminal.rows) == 0 { return -1 }
-        return terminal.fd
-    } else {
-        descriptors: [2]s32
-        if Pipe(*descriptors[0]) != 0 { return -1 }
-        terminal.fd = descriptors[1]
-        terminal.running = 1
-        return descriptors[0]
-    }
+    descriptors: [2]s32
+    if Pipe(*descriptors[0]) != 0 { return -1 }
+    terminal.fd = descriptors[1]
+    terminal.running = 1
+    return descriptors[0]
 }
 
 Capture :: (terminal: *Terminal, descriptor: s32, expected: string) -> bool {
     output: [4096]u8
     used: s32
-    #if #defined(PLAN9) {
-        for attempt: 0..199 {
-            got := Transport.TerminalPtyRead(descriptor, cast(*void)(*output[used]), 4095 - used)
-            if got > 0 { used += got }
-            if got < 0 || cast(s64)used >= expected.count { break }
-            Pause(10)
-        }
-        terminal_close(terminal)
-    } else {
-        terminal_close(terminal)
-        while used < 4095 {
-            got := Read(descriptor, cast(*void)(*output[used]), cast(usize)(4095 - used))
-            if got <= 0 { break }
-            used += cast(s32)got
-        }
-        Close(descriptor)
+    terminal_close(terminal)
+    while used < 4095 {
+        got := Read(descriptor, cast(*void)(*output[used]), cast(usize)(4095 - used))
+        if got <= 0 { break }
+        used += cast(s32)got
     }
+    Close(descriptor)
     return TextView(output[0:used]) == expected
 }
 
@@ -324,20 +301,10 @@ ChildProcess :: () -> s32 {
     defer terminal_close(*terminal)
     shell: *u8
     command: string
-    #if #defined(PLAN9) {
-        shell = Bytes("/bin/rc")
-        command = "echo ENGINE_CHILD_OK; input=`{read}; echo GOT:$\"input"
-    } else {
-        shell = Environment(Bytes("TERMINAL_TEST_SHELL"))
-        if shell == null { return 81 }
-        command = "printf 'ENGINE_CHILD_OK\\r\\n'; read input; printf 'GOT:%s' \"$input\""
-    }
+    shell = Environment(Bytes("TERMINAL_TEST_SHELL"))
+    if shell == null { return 81 }
+    command = "printf 'ENGINE_CHILD_OK\\r\\n'; read input; printf 'GOT:%s' \"$input\""
     if terminal_spawn(*terminal, Bytes("/"), shell, Bytes(command), 40, 8) == 0 { return 82 }
-    #if #defined(PLAN9) {
-        // Native pipes have no tty ONLCR conversion. Exercise the engine's
-        // newline mode when the controlled rc child writes LF-only lines.
-        Feed(*terminal, "\x1b[20h")
-    }
     if !WaitForLine(*terminal, "ENGINE_CHILD_OK") { return 83 }
     terminal_resize(*terminal, 80, 20)
     if terminal.cols != 80 || terminal.rows != 20 ||

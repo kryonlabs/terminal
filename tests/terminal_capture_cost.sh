@@ -18,14 +18,11 @@ entry=terminal_capture_cost_probe:main
 for form in source saved; do
     input=$source
     if test "$form" = saved; then input=$work/ir/terminal_capture_cost_probe.zir; fi
-    for target in c cpp; do
-        out="$work/$form-$target"
-        "$ziran" build --project $lock_flags --target="$target" --entry "$entry" -o "$out" "$input"
-        if test "$target" = c; then compiler=${CC:-cc}; standard=c11
-        else compiler=${CXX:-c++}; standard=c++17; fi
-        "$compiler" -std="$standard" -O2 -I"$out" "$out"/*."$target" -o "$out/run"
-        timeout --kill-after=2s 120s "$out/run" >"$work/$form-$target.jsonl"
-    done
+    out="$work/$form-c"
+    "$ziran" build --project $lock_flags --target=c --entry "$entry" -o "$out" "$input"
+    compiler=${CC:-cc}; standard=c11
+    "$compiler" -std="$standard" -O2 -I"$out" "$out"/*.c -o "$out/run"
+    timeout --kill-after=2s 120s "$out/run" >"$work/$form-c.jsonl"
 done
 python3 - "$work" <<'PY'
 import json, sys
@@ -33,7 +30,7 @@ from pathlib import Path
 root = Path(sys.argv[1])
 rows = {}
 for form in ['source', 'saved']:
-    for target in ['c', 'cpp']:
+    for target in ['c']:
         name = f'{form}-{target}'
         data = [json.loads(line) for line in (root / f'{name}.jsonl').read_text().splitlines()]
         assert len(data) == 96, (name, len(data))

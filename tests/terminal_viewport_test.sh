@@ -18,14 +18,11 @@ source=tests/terminal_viewport_test.zi
 for form in source saved; do
     input=$source
     if test "$form" = saved; then input=$work/ir/terminal_viewport_test.zir; fi
-    for target in c cpp; do
-        out="$work/$form-$target"
-        "$ziran" build --project $locked --target="$target" --entry "$entry" -o "$out" "$input"
-        if test "$target" = c; then compiler=${CC:-cc}; standard=c11
-        else compiler=${CXX:-c++}; standard=c++17; fi
-        "$compiler" -std="$standard" -O2 -I"$out" "$out"/*."$target" "$work/allocator.o" \
-            -Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc -o "$out/run"
-        timeout --kill-after=2s 90s "$out/run"
-    done
+    out="$work/$form-c"
+    "$ziran" build --project $locked --target=c --entry "$entry" -o "$out" "$input"
+    compiler=${CC:-cc}; standard=c11
+    "$compiler" -std="$standard" -O2 -I"$out" "$out"/*.c "$work/allocator.o" \
+        -Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc -o "$out/run"
+    timeout --kill-after=2s 90s "$out/run"
 done
-echo 'Read-only viewport source/saved-IR C/C++ checks passed'
+echo 'Read-only viewport source/saved-IR C checks passed'

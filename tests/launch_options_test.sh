@@ -18,12 +18,6 @@ for form in source saved; do
     "$ziran" build --project $lock_flags --target=c --entry "$entry" \
         --exe -o "$work/$form-c" "$input"
     timeout --kill-after=2s 10s "$work/$form-c/terminal_launch_options_test" > "$work/$form-c/output"
-    "$ziran" build --project $lock_flags --target=cpp --entry "$entry" \
-        -o "$work/$form-cpp" "$input"
-    "${CXX:-c++}" -std=c++17 -O1 -I"$work/$form-cpp" \
-        "$work/$form-cpp"/*.cpp -o "$work/$form-cpp/run"
-    timeout --kill-after=2s 10s "$work/$form-cpp/run" > "$work/$form-cpp/output"
-    cmp "$work/$form-c/output" "$work/$form-cpp/output"
 done
 cmp "$work/source-c/output" "$work/saved-c/output"
-echo 'Terminal launch options passed source and saved-IR C/C++ parsing and output'
+echo 'Terminal launch options passed source and saved-IR C parsing and output'

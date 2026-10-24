@@ -16,7 +16,7 @@ make install
 
 The application, terminal engine, pane and shared application host are
 maintained in Ziran. `make` generates native C from the current `.zi`
-entrypoint and links Kryon's Raylib backend over SDL2. The build needs a C/C++
+entrypoint and links Kryon's Raylib backend over SDL2. The build needs a C
 compiler, CMake, pkg-config, SDL2 and OpenGL development files. Raylib's source
 is resolved from the Git-backed package lock. Builds default to one job;
 `TERMINAL_BUILD_JOBS` may select up to four.
@@ -24,7 +24,7 @@ is resolved from the Git-backed package lock. Builds default to one job;
 `standalone-window-test` runs the actual executable on a private Xvfb display.
 It checks CLI routes, a rendered window, real child-process input, held and
 repeated Control keys, menu input ownership, and closing its own window.
-`standalone-test` repeats these checks for C and C++ from source and saved IR.
+`standalone-test` repeats these checks from source and saved IR.
 `independent-window-test` opens separate agent-terminal views on a private display,
 checks that repeated launches keep the first window and input working, and verifies
 that closing a view preserves the other window and both tmux sessions. Its display,
@@ -35,25 +35,8 @@ session and display variables before creating their private display.
 
 The focused Ziran suites exercise the actual engine, configuration, sessions,
 launch options, application state, input, view, host, widget, clipboard and
-process transports. Native Plan 9 module checks use a headless Taiji guest
-with one CPU, 256 MB RAM, a 32 MB translation buffer and a 120-second limit:
-
-```sh
-TAIJI_DIR=/path/to/taijiosnet/taiji make standalone-plan9-test
-TAIJI_DIR=/path/to/taijiosnet/taiji make standalone-plan9-graphics-test
-TAIJI_DIR=/path/to/taijiosnet/taiji make terminal-plan9-test host-plan9-test
-make plan9-c
-```
-
-`plan9-c` emits the complete application for native `mk`/8c/8l. The standalone
-native test builds the real executable and checks its CLI and forwarding to
-Rill from source and saved IR. `standalone-plan9-graphics-test` adds captures
-from the real native application and checks child output, ANSI truecolor and
-rendered glyphs on its owned offscreen target. It runs through private Xvfb
-and the bounded guest. This new gate remains unverified because the sandbox
-blocks the guest filesystem connection; native graphical input, font fallback
-and Rill's actual embedded integration remain migration gates.
-Rill can import `terminal/app_host`; its integration must own the surrounding frame,
+process transports.
+Hosts can import `terminal/app_host`; the host owns the surrounding frame,
 device input and window operations.
 
 ## Embedding as a Ziran package
@@ -89,17 +72,15 @@ are rejected. The call preserves styles, soft wrapping and the configured
 logical history limit, and ordinary `terminal_feed` can continue afterward.
 It reserves at most one screen minus one row beyond the history limit while
 batching. `make terminal-capture-test` checks parity before and after later
-input and resize; `make terminal-capture-plan9-test` runs the same fixture in
-the native guest. `sh scripts/capture-replay.sh` measures allocation, capture
-parsing and reflow separately in C/C++ from source or saved IR.
+input and resize. `sh scripts/capture-replay.sh` measures allocation, capture
+parsing and reflow separately in C from source or saved IR.
 
 For repeated complete snapshots, `terminal_reset_capture` resets a detached
 engine while reusing compatible screen and history storage. It clears prior
 parser, mode, image and clipboard state before replay, and leaves the prior
 capture intact if replacement storage cannot be allocated. It rejects a live
 PTY or supervised process. `make terminal-capture-storage-test` checks state
-parity and allocation failures; `make terminal-capture-storage-plan9-test`
-runs the state checks from source and saved IR with native Plan 9 8c/8l.
+parity and allocation failures from source and saved IR.
 
 For a remote or otherwise host-managed process, set the pane's `write_input`
 callback and `input_userdata`; keyboard input is encoded by Terminal and handed to
@@ -122,7 +103,7 @@ in an ignored `ziran.local.toml`; no source copies or sibling module paths are
 needed in application code.
 
 `make package-test` adds Terminal by its HTTPS URL to a generated consumer,
-then compiles and runs package-qualified imports in C and C++ from source and
+then compiles and runs package-qualified imports in C from source and
 saved IR. It checks Unicode/ANSI parsing, pane painting through the host's
 Kryon session, keyboard encoding and clipboard storage without a desktop
 display. The consumer has its own module roots and checks that Terminal's
@@ -137,8 +118,7 @@ The default `PREFIX` is `~/.local`; `DESTDIR` supports staged packaging.
 The Linux release workflow is in `.github/workflows/release.yml`. Its intended
 assets are `tar.gz`, `.deb`, and `.AppImage` packages. The remaining behavior
 and release-readiness work is tracked in `docs/REMAINING_FEATURE_PLAN.md` and
-`docs/ZIRAN_MIGRATION.md`; passing the standalone checks does not establish a
-complete Rill migration or native Plan 9 graphical session.
+`docs/ZIRAN_MIGRATION.md`.
 
 Dependencies resolve through `scripts/ziran.sh`, `ziran.toml`, and the
 command-generated `ziran.lock`. Install Ziran on `PATH` for a locked checkout.
@@ -342,6 +322,5 @@ Terminal graphics:
 
 The app is **Terminal**: its private repository is `kryonlabs/terminal`, its
 Ziran package and import prefix is `terminal`, and its command, desktop
-launcher, configuration (`~/.config/terminal/config`, Plan 9
-`/lib/terminal/config`) and saved sessions (`~/.local/state/terminal/session`)
+launcher, configuration (`~/.config/terminal/config`) and saved sessions (`~/.local/state/terminal/session`)
 use the same name.

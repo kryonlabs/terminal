@@ -16,22 +16,13 @@ Frames :: #import "kryon/session";
 UI :: #import "kryon/tree_input";
 Geometry :: #import "kryon/geometry";
 Text :: #import "std/byte_text_linux";
-#if #defined(PLAN9) {
-    Transport :: #import "terminal_pty_plan9";
-} else {
-    Transport :: #import "terminal_pty_linux";
-}
+Transport :: #import "terminal_pty_linux";
 #scope_file
 libc :: #system_library "c";
-#if #defined(PLAN9) {
-    Pause :: (milliseconds: s32) -> s32 #foreign libc "sleep";
-    Shell :: () -> string { return "/bin/rc" }
-} else {
-    Environment :: (name: *s8) -> *s8 #foreign libc "getenv";
-    PauseHost :: (microseconds: u32) -> s32 #foreign libc "usleep";
-    Pause :: (milliseconds: s32) { PauseHost(cast(u32)(milliseconds * 1000)) }
-    Shell :: () -> string { return Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("TERMINAL_TEST_SHELL"))) }
-}
+Environment :: (name: *s8) -> *s8 #foreign libc "getenv";
+PauseHost :: (microseconds: u32) -> s32 #foreign libc "usleep";
+Pause :: (milliseconds: s32) { PauseHost(cast(u32)(milliseconds * 1000)) }
+Shell :: () -> string { return Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("TERMINAL_TEST_SHELL"))) }
 Bytes :: (value: string) -> *u8 {
     descriptor := cast(*Text.TextDescriptor)(*value)
     return descriptor.data
@@ -50,11 +41,7 @@ Application :: () -> *State.State {
 }
 Open :: (app: *State.State) -> bool {
     command: string
-    #if #defined(PLAN9) {
-        command = "exec /bin/cat"
-    } else {
-        command = "stty raw -echo; exec /bin/cat"
-    }
+    command = "stty raw -echo; exec /bin/cat"
     return Sessions.Open(app, command)
 }
 Observe :: (terminal: *Engine.Terminal, expected: string) -> bool {

@@ -5,11 +5,7 @@ Sheet :: #import "kryon/style_sheet";
 Styles :: #import "kryon/style";
 Controls :: #import "kryon/control_props";
 Pane :: #import "terminal_pane_profile_colors";
-#if #defined(PLAN9) {
-    SystemTheme :: #import "kryon/SystemTheme";
-} else {
-    SystemTheme :: #import "kryon/SystemThemeLinux";
-}
+SystemTheme :: #import "kryon/SystemThemeLinux";
 
 Role :: (kind: s32, background: u32, foreground: u32) -> Styles.StyleData {
     base: Styles.StyleData
@@ -89,11 +85,7 @@ Defaults :: (palette: *Palette) {
 
 ApplySystemTheme :: (palette: *Palette) -> bool {
     if palette == null { return false }
-    #if #defined(PLAN9) {
-        system := SystemTheme.SystemPaletteFallback(false)
-    } else {
-        system := SystemTheme.SystemPaletteRead()
-    }
+    system := SystemTheme.SystemPaletteRead()
     base := Theme.DefaultPalette(system.dark)
     rules: Sheet.StyleRules
     Rule(*rules, Sheet.StyleKindApp(), system.background, system.text)

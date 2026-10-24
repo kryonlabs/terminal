@@ -26,12 +26,5 @@ for input in source saved; do
     "$ziran" build --project $lock_flags --target=c --entry "$entry" \
         --exe -o "$work/$input-c" "$file"
     "$work/$input-c/$module"
-    "$ziran" build --project $lock_flags --target=cpp --entry "$entry" \
-        -o "$work/$input-cpp" "$file"
-    "${CXX:-c++}" -std=c++17 -O2 -I"$work/$input-cpp" "$work/$input-cpp"/*.cpp \
-        -o "$work/$input-cpp/run"
-    "$work/$input-cpp/run"
 done
-"$ziran" build --project $lock_flags --target=plan9-c --entry "$entry" \
-    -o "$work/plan9" "$source"
-echo "Terminal $suite source and saved IR passed C and C++ execution"
+echo "Terminal $suite source and saved IR passed C execution"

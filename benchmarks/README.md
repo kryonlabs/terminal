@@ -3,7 +3,7 @@
 `make parser-replay` compiles `parser_replay.zi` against the maintained Terminal
 engine and runs all 13 historical parser, search and resize workloads. It needs
 no display. `make parser-replay-test` checks the original payload row/byte totals
-with reduced source and saved-IR runs in C and C++.
+with reduced source and saved-IR runs in C.
 
 GUI benchmarks always create their own Xvfb display, remove inherited desktop
 and session variables, and use a controlled child shell. Window lookup requires

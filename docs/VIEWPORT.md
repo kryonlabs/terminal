@@ -37,10 +37,8 @@ viewport structure, original source cells and any host storage. This is a
 component storage bound, not a whole-application RAM measurement.
 
 Run `make terminal-viewport-test` for complete comparisons with the current
-resize in source/saved-IR C and C++, allocation-free attached-source rebuilds,
-and failed-allocation guards. `make terminal-viewport-plan9-test` runs the same
-source/saved-IR fixture through native Plan 9 `8c`/`8l`, with `TAIJI_DIR` set to
-the canonical Taiji checkout. These tests open no desktop windows.
+resize in source/saved-IR C, allocation-free attached-source rebuilds,
+and failed-allocation guards. These tests open no desktop windows.
 
 Pass the prepared index as `TerminalPane.viewport` and keep `TerminalPane.terminal`
 pointing at its original source. The existing widget paints the projected cells

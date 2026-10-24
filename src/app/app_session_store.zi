@@ -4,16 +4,9 @@ Sessions :: #import "app_session";
 Pane :: #import "terminal_pane_session";
 Text :: #import "std/byte_text_linux";
 Number :: #import "std/number_text";
-#if #defined(PLAN9) {
-    File :: #import "std/file_plan9";
-} else {
-    File :: #import "std/file_linux";
-}
+File :: #import "std/file_linux";
 libc :: #system_library "c";
 Environment :: (name: *s8) -> *s8 #foreign libc "getenv";
-#if #defined(PLAN9) {
-    FreeHost :: (value: *void) #foreign libc "free";
-}
 
 Bytes :: (value: string) -> *u8 {
     descriptor := cast(*Text.TextDescriptor)(*value)
@@ -44,11 +37,10 @@ ReadLine :: (line: *u8, length: s32, records: []Pane.TerminalPaneSessionRecord,
 }
 
 #scope_export
-ResolvePath :: (xdg: string, home: string, plan9: bool, output: []u8) -> string {
+ResolvePath :: (xdg: string, home: string, output: []u8) -> string {
     root := home
     suffix := "/.local/state/terminal/session"
-    if plan9 { suffix = "/lib/terminal/session" }
-    else if xdg != "" { root = xdg; suffix = "/terminal/session" }
+    if xdg != "" { root = xdg; suffix = "/terminal/session" }
     if root == "" || root.count + suffix.count >= output.count { return "" }
     used: s64
     Put(output, *used, root); Put(output, *used, suffix)
@@ -56,15 +48,8 @@ ResolvePath :: (xdg: string, home: string, plan9: bool, output: []u8) -> string 
 }
 
 Path :: (output: []u8) -> string {
-    #if #defined(PLAN9) {
-        home := Environment(cast(*s8)Bytes("home"))
-        result := ResolvePath("", Text.TextFromCString(cast(*u8)home), true, output)
-        FreeHost(cast(*void)home)
-        return result
-    } else {
-        return ResolvePath(Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("XDG_STATE_HOME"))),
-            Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("HOME"))), false, output)
-    }
+    return ResolvePath(Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("XDG_STATE_HOME"))),
+        Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("HOME"))), output)
 }
 
 Serialize :: (sessions: []Sessions.Session, active: s32, output: []u8) -> s64 {

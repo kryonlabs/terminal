@@ -19,18 +19,10 @@ Device :: #import "kryon/tree_input";
 Text :: #import "std/text_buffer";
 Bytes :: #import "std/byte_text_linux";
 using Geometry :: #import "kryon/geometry";
-#if #defined(PLAN9) {
-    Clock :: #import "std/date_time_plan9";
-} else {
-    Clock :: #import "std/timer_linux";
-}
+Clock :: #import "std/timer_linux";
 
 Milliseconds :: () -> s64 {
-    #if #defined(PLAN9) {
-        return Clock.UnixMilliseconds()
-    } else {
-        return Clock.MonotonicMilliseconds()
-    }
+    return Clock.MonotonicMilliseconds()
 }
 Drain :: (terminal: *Engine.Terminal, burst_ms: s32) -> s32 {
     bytes := Engine.terminal_poll_bytes(terminal)
@@ -98,11 +90,7 @@ Prepare :: (host: *Host, arguments: []string, error: []u8,
         return Launch.ParseResult.ParseError
     }
     host.persist = persist; host.embedded = embedded
-    #if #defined(PLAN9) {
-        host.burst_ms = 0
-    } else {
-        host.burst_ms = 8
-    }
+    host.burst_ms = 8
     if persist { Config.Load(*host.app.config) }
     // Embedded Terminal starts a shell; a saved standalone command does not
     // run again merely because Rill opens its application view.

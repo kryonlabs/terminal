@@ -15,12 +15,9 @@ source=tests/terminal_capture_test.zi
 for form in source saved; do
     input=$source
     if test "$form" = saved; then input=$work/ir/terminal_capture_test.zir; fi
-    for target in c cpp; do
-        "$ziran" build --project $lock_flags --target="$target" --entry "$entry" -o "$work/$form-$target" "$input"
-        if test "$target" = c; then compiler=${CC:-cc}; standard=c11
-        else compiler=${CXX:-c++}; standard=c++17; fi
-        "$compiler" -std="$standard" -O2 -I"$work/$form-$target" "$work/$form-$target"/*."$target" -o "$work/run"
-        timeout --kill-after=2s 30s "$work/run"
-    done
+    "$ziran" build --project $lock_flags --target=c --entry "$entry" -o "$work/$form-c" "$input"
+    compiler=${CC:-cc}; standard=c11
+    "$compiler" -std="$standard" -O2 -I"$work/$form-c" "$work/$form-c"/*.c -o "$work/run"
+    timeout --kill-after=2s 30s "$work/run"
 done
-echo 'Terminal captures match original replay in source/saved-IR C/C++ execution'
+echo 'Terminal captures match original replay in source/saved-IR C execution'

@@ -18,19 +18,12 @@ for input in source saved; do
     "$ziran" build --project $lock_flags --target=c --entry "$entry" \
         --exe -o "$work/$input-c" "$module"
     "$work/$input-c/terminal_pane_metrics_test"
-    "$ziran" build --project $lock_flags --target=cpp --entry "$entry" \
-        -o "$work/$input-cpp" "$module"
-    "${CXX:-c++}" -std=c++17 -O2 -I"$work/$input-cpp" "$work/$input-cpp"/*.cpp \
-        -o "$work/$input-cpp/test"
-    "$work/$input-cpp/test"
     "$ziran" build --project $lock_flags --target=go --pkg main --entry "$entry" \
         --exe -o "$work/$input-go" "$module"
     env GO111MODULE=off go run "$work/$input-go"/*.go
     "$ziran" bundle --project $lock_flags --entry "$entry" \
-        -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 0
+        -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 0
 done
-cmp "$work/source.zib" "$work/saved.zib"
-"$ziran" build --project $lock_flags --target=plan9-c --entry "$entry" \
-    -o "$work/plan9" "$source"
+cmp "$work/source.zx" "$work/saved.zx"
 echo 'Terminal pane metrics source, saved IR, native targets, and portable bundles passed'

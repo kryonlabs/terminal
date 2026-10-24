@@ -1,5 +1,5 @@
 #!/bin/sh
-# Run the actual executable from source and saved IR in C and C++.
+# Run the actual executable from source and saved IR in C.
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
@@ -16,12 +16,10 @@ test -f "$archive"
 for form in source saved; do
     input=src/app/app_main.zi
     if test "$form" = saved; then input=$work/ir/app_main.zir; fi
-    for target in c cpp; do
-        output=$work/$form-$target
-        ZIRAN="$ziran" RAYLIB_A="$archive" sh scripts/build.sh "$target" "$output" "$input"
-        env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
-            LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
-            env TERMINAL_PRIVATE_XVFB=1 python3 tests/standalone_window_test.py "$output/bin/terminal"
-    done
+    output=$work/$form-c
+    ZIRAN="$ziran" RAYLIB_A="$archive" sh scripts/build.sh c "$output" "$input"
+    env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
+        LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
+        env TERMINAL_PRIVATE_XVFB=1 python3 tests/standalone_window_test.py "$output/bin/terminal"
 done
-echo 'Terminal executable source and saved IR passed real C/C++ window and child-process checks'
+echo 'Terminal executable source and saved IR passed real C window and child-process checks'

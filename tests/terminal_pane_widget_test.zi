@@ -18,12 +18,8 @@ Fixtures :: #import "terminal_capture_test";
 libc :: #system_library "c";
 CompareRaw :: (left: *void, right: *void, count: usize) -> s32 #foreign libc "memcmp";
 Environment :: (name: *u8) -> *u8 #foreign libc "getenv";
-#if #defined(PLAN9) {
-    Pause :: (milliseconds: s32) -> s32 #foreign libc "sleep";
-} else {
-    PauseHost :: (microseconds: u32) -> s32 #foreign libc "usleep";
-    Pause :: (milliseconds: s32) { PauseHost(cast(u32)(milliseconds * 1000)) }
-}
+PauseHost :: (microseconds: u32) -> s32 #foreign libc "usleep";
+Pause :: (milliseconds: s32) { PauseHost(cast(u32)(milliseconds * 1000)) }
 Bytes :: (value: string) -> *u8 {
     descriptor := cast(*Text.TextDescriptor)(*value)
     return descriptor.data
@@ -430,11 +426,7 @@ main :: () -> s32 {
     Engine.terminal_close(*terminal)
     // Route real Kryon key/text frames into a supervised child process.
     shell: *u8
-    #if #defined(PLAN9) {
-        shell = Bytes("/bin/rc")
-    } else {
-        shell = Environment(Bytes("TERMINAL_TEST_SHELL"))
-    }
+    shell = Environment(Bytes("TERMINAL_TEST_SHELL"))
     if Engine.terminal_spawn(*terminal, Bytes("/"), shell, Bytes("exec cat"), 8, 4) == 0 { return 12 }
     pane.bounds = bounds; pane.padding = 2; pane.focused = true; pane.handle_input = true
     Input.TreePointerUpdate(session, Input.PointerFrame.{})

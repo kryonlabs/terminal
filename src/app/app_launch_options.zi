@@ -130,7 +130,7 @@ Defaults :: (options: *LaunchOptions) {
     options.show_menubar = true; options.show_toolbar = true; options.show_borders = true
 }
 
-JoinExecuteCommand :: (arguments: []string, output: []u8, plan9: bool = false) -> bool {
+JoinExecuteCommand :: (arguments: []string, output: []u8) -> bool {
     if arguments.count == 0 || output.count <= 0 { return false }
     output[0] = 0
     used: s64
@@ -140,7 +140,7 @@ JoinExecuteCommand :: (arguments: []string, output: []u8, plan9: bool = false) -
         argument := arguments[index]
         for byte: cast(s64)0..argument.count - 1 {
             if argument[byte] == 39 {
-                if !Put(output, *used, ifx plan9 then "''" else "'\\''") { return false }
+                if !Put(output, *used, "'\\''") { return false }
             } else {
                 if argument[byte] == 0 || used + 1 >= output.count { return false }
                 output[used] = argument[byte]; used += 1; output[used] = 0
@@ -194,11 +194,7 @@ Parse :: (options: *LaunchOptions, config: *Types.TerminalPaneProfileSettings,
         }
         if arg == "--execute" || arg == "-x" {
             command: [1024]u8
-            plan9: bool
-            #if #defined(PLAN9) {
-                plan9 = true
-            }
-            if !JoinExecuteCommand(arguments[cursor:arguments.count], command[:], plan9) {
+            if !JoinExecuteCommand(arguments[cursor:arguments.count], command[:]) {
                 return Error(error, "execute option requires a command", arg)
             }
             if active_tab >= 0 { Copy(options.tabs[active_tab].command[:], Text.TextFromCString(*command[0])) }

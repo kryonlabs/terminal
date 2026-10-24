@@ -14,15 +14,7 @@ source=tests/terminal_pane_osc_test.zi
 "$ziran" build --project $lock_flags --target=c --entry "$entry" --exe \
     -o "$work/c" "$source"
 "$work/c/terminal_pane_osc_test"
-"$ziran" build --project $lock_flags --target=cpp --entry "$entry" \
-    -o "$work/cpp" "$source"
-"${CXX:-c++}" -std=c++17 -O2 -I"$work/cpp" "$work/cpp"/*.cpp \
-    -o "$work/cpp/test"
-"$work/cpp/test"
 "$ziran" ir --project $lock_flags --entry "$entry" -o "$work/ir" "$source"
 "$ziran" build --project $lock_flags --target=c --root "$work/ir" \
     --entry "$entry" --exe -o "$work/ir-c" "$work/ir/terminal_pane_osc_test.zir"
 "$work/ir-c/terminal_pane_osc_test"
-"$ziran" build --project $lock_flags --target=plan9-c --entry "$entry" \
-    -o "$work/plan9" "$source"
-echo 'Terminal OSC source, saved IR, C, C++, and Plan 9 generation passed'

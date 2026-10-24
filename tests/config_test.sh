@@ -18,10 +18,5 @@ for form in source saved; do
     "$ziran" build --project $lock_flags --target=c --entry "$entry" \
         --exe -o "$work/$form-c" "$input"
     (cd "$work/$form-c" && timeout --kill-after=2s 10s ./terminal_config_test)
-    "$ziran" build --project $lock_flags --target=cpp --entry "$entry" \
-        -o "$work/$form-cpp" "$input"
-    "${CXX:-c++}" -std=c++17 -O2 -I"$work/$form-cpp" \
-        "$work/$form-cpp"/*.cpp -o "$work/$form-cpp/run"
-    (cd "$work/$form-cpp" && timeout --kill-after=2s 10s ./run)
 done
-echo 'Terminal configuration source and saved IR passed C and C++ execution'
+echo 'Terminal configuration source and saved IR passed C execution'

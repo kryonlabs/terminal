@@ -12,26 +12,15 @@ Geometry :: #import "kryon/geometry";
 Text :: #import "std/byte_text_linux";
 ClipboardHost :: #import "terminal_clipboard_host";
 PaintHost :: #import "terminal_view_host";
-#if #defined(PLAN9) {
-    Transport :: #import "terminal_pty_plan9";
-} else {
-    Transport :: #import "terminal_pty_linux";
-}
+Transport :: #import "terminal_pty_linux";
 
 libc :: #system_library "c";
-#if #defined(PLAN9) {
-    Pause :: (milliseconds: s32) -> s32 #foreign libc "sleep";
-    Shell :: () -> string { return "/bin/rc" }
-    EchoCommand :: () -> string { return "exec /bin/cat" }
-    ExitCommand :: () -> string { return "echo done" }
-} else {
-    Environment :: (name: *s8) -> *s8 #foreign libc "getenv";
-    PauseHost :: (microseconds: u32) -> s32 #foreign libc "usleep";
-    Pause :: (milliseconds: s32) { PauseHost(cast(u32)(milliseconds * 1000)) }
-    Shell :: () -> string { return Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("TERMINAL_TEST_SHELL"))) }
-    EchoCommand :: () -> string { return "stty raw -echo; exec /bin/cat" }
-    ExitCommand :: () -> string { return "printf done" }
-}
+Environment :: (name: *s8) -> *s8 #foreign libc "getenv";
+PauseHost :: (microseconds: u32) -> s32 #foreign libc "usleep";
+Pause :: (milliseconds: s32) { PauseHost(cast(u32)(milliseconds * 1000)) }
+Shell :: () -> string { return Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("TERMINAL_TEST_SHELL"))) }
+EchoCommand :: () -> string { return "stty raw -echo; exec /bin/cat" }
+ExitCommand :: () -> string { return "printf done" }
 Bytes :: (value: string) -> *u8 {
     descriptor := cast(*Text.TextDescriptor)(*value)
     return descriptor.data

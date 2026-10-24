@@ -72,15 +72,11 @@ main :: () -> s32 {
     execute: [5]string = .{"terminal", "-x", "printf", "a b", "c'd"}
     Config.Defaults(*config); Launch.Defaults(*options)
     if cast(s32)Launch.Parse(*options, *config, execute[:], error[:]) != 0 { return 13 }
-    #if #defined(PLAN9) {
-        if Value(config.command[:]) != "'printf' 'a b' 'c''d'" { return 14 }
-    } else {
-        if Value(config.command[:]) != "'printf' 'a b' 'c'\\''d'" { return 14 }
-    }
+    if Value(config.command[:]) != "'printf' 'a b' 'c'\\''d'" { return 14 }
     command: [1024]u8
     quotes: [3]string = .{"", "line\nwith tab\t", "c'd"}
-    if !Launch.JoinExecuteCommand(quotes[:], command[:], true) ||
-        Value(command[:]) != "'' 'line\nwith tab\t' 'c''d'" { return 15 }
+    if !Launch.JoinExecuteCommand(quotes[:], command[:]) ||
+        Value(command[:]) != "'' 'line\nwith tab\t' 'c'\\''d'" { return 15 }
     long: [1024]u8
     for at: cast(s64)0..cast(s64)1022 { long[at] = 120 }
     execute[2] = TextView(long[0:1023])

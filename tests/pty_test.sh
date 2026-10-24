@@ -24,10 +24,5 @@ for input in source saved; do
     "$ziran" build --project $lock_flags --target=c --entry "$entry" \
         --exe -o "$work/$input-c" "$module"
     TERMINAL_TEST_SHELL="$work/shell" timeout --kill-after=2s 10s "$work/$input-c/terminal_pty_linux_test"
-    "$ziran" build --project $lock_flags --target=cpp --entry "$entry" \
-        -o "$work/$input-cpp" "$module"
-    "${CXX:-c++}" -std=c++17 -O2 -I"$work/$input-cpp" "$work/$input-cpp"/*.cpp \
-        -o "$work/$input-cpp/test"
-    TERMINAL_TEST_SHELL="$work/shell" timeout --kill-after=2s 10s "$work/$input-cpp/test"
 done
-echo 'Terminal Linux PTY source and saved IR passed C and C++ execution'
+echo 'Terminal Linux PTY source and saved IR passed C execution'

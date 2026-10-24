@@ -5,13 +5,8 @@ Capture :: #import "terminal_capture_test";
 Text :: #import "std/byte_text_linux";
 libc :: #system_library "c";
 CompareRaw :: (left: *void, right: *void, count: usize) -> s32 #foreign libc "memcmp";
-#if #defined(PLAN9) {
-    Track :: (failure: s32) { unused failure }
-    Stop :: () -> s32 { return 0 }
-} else {
-    Track :: (failure: s32) #foreign libc "capture_storage_track";
-    Stop :: () -> s32 #foreign libc "capture_storage_stop";
-}
+Track :: (failure: s32) #foreign libc "capture_storage_track";
+Stop :: () -> s32 #foreign libc "capture_storage_stop";
 SameCell :: (a: *Cell, b: *Cell) -> bool {
     return a != null && b != null && a.codepoint == b.codepoint && a.combining == b.combining &&
         a.fg == b.fg && a.bg == b.bg && a.underline == b.underline &&
@@ -125,16 +120,10 @@ main :: () -> s32 {
         if !ok || attempts != 0 || CompareRaw(cast(*void)(*before),cast(*void)(*source),size_of(Terminal)) != 0 { return 1 }
     }
     source.fd = -1;source.pid = 0;source.running = 0
-    #if !#defined(PLAN9) {
-        old := view; Track(1); ok := terminal_viewport_build(*view,*source,40,120); unused Stop()
-        if ok || CompareRaw(cast(*void)(*old),cast(*void)(*view),size_of(TerminalViewport)) != 0 { return 1 }
-    }
+    old := view; Track(1); ok := terminal_viewport_build(*view,*source,40,120); unused Stop()
+    if ok || CompareRaw(cast(*void)(*old),cast(*void)(*view),size_of(TerminalViewport)) != 0 { return 1 }
     if terminal_viewport_build(*view,null,80,24) || terminal_viewport_cell(*view,-1,0) != null ||
        terminal_viewport_cell(*view,view.cols,0) != null { return 1 }
-    #if #defined(PLAN9) {
-        print("Viewport matches full resize in % complete cell/text/wrap/cursor cases; 100 unchanged attached-source builds and null guards passed (allocator fault injection is a C/C++ gate)\n",checked)
-    } else {
-        print("Viewport matches full resize in % complete cell/text/wrap/cursor cases; 100 allocation-free attached-source builds and failed-allocation/null guards passed\n",checked)
-    }
+    print("Viewport matches full resize in % complete cell/text/wrap/cursor cases; 100 allocation-free attached-source builds and failed-allocation/null guards passed\n",checked)
     return 0
 }

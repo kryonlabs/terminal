@@ -20,11 +20,6 @@ for suite in profile_colors profile profile_prompt profile_settings sixel; do
         "$ziran" build --project $lock_flags --target=c --entry "$entry" \
             --exe -o "$work/$suite-$form-c" "$input"
         timeout 10 "$work/$suite-$form-c/$module"
-        "$ziran" build --project $lock_flags --target=cpp --entry "$entry" \
-            -o "$work/$suite-$form-cpp" "$input"
-        "${CXX:-c++}" -std=c++17 -O1 -I"$work/$suite-$form-cpp" \
-            "$work/$suite-$form-cpp"/*.cpp -o "$work/$suite-$form-cpp/run"
-        timeout 10 "$work/$suite-$form-cpp/run"
     done
 done
-echo 'Terminal theme, profiles and sixel policy passed source and saved-IR C/C++ execution'
+echo 'Terminal theme, profiles and sixel policy passed source and saved-IR C execution'

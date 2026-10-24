@@ -11,12 +11,8 @@ Pane :: #import "terminal_pane_widget";
 Records :: #import "terminal_pane_session";
 Text :: #import "std/byte_text_linux";
 Geometry :: #import "kryon/geometry";
-#if #defined(PLAN9) {
-    File :: #import "std/file_plan9";
-} else {
-    libc :: #system_library "c";
-    DirectoryHost :: (output: *s8, capacity: usize) -> *s8 #foreign libc "getcwd";
-}
+libc :: #system_library "c";
+DirectoryHost :: (output: *s8, capacity: usize) -> *s8 #foreign libc "getcwd";
 
 Clamp :: (value: s32, minimum: s32, maximum: s32) -> s32 {
     if value < minimum { return minimum }
@@ -27,12 +23,8 @@ InitialCwd :: (app: *State.State, output: []u8) -> string {
     if app.config.working_directory[0] != 0 {
         return Session.CopyText(output, Text.TextFromCString(*app.config.working_directory[0]))
     }
-    #if #defined(PLAN9) {
-        return File.CurrentDirectory(output)
-    } else {
-        if output.count <= 0 || DirectoryHost(cast(*s8)(*output[0]), cast(usize)output.count) == null { return "" }
-        return Text.TextFromCString(*output[0])
-    }
+    if output.count <= 0 || DirectoryHost(cast(*s8)(*output[0]), cast(usize)output.count) == null { return "" }
+    return Text.TextFromCString(*output[0])
 }
 EstimateGrid :: (app: *State.State, cols: *s32, rows: *s32) {
     cols.* = 100; rows.* = 30

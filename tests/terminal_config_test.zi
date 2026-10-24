@@ -1,11 +1,7 @@
 Config :: #import, file "../src/app/app_config.zi";
 Types :: #import "terminal_pane_profile_types";
 Text :: #import "std/byte_text_linux";
-#if #defined(PLAN9) {
-    File :: #import "std/file_plan9";
-} else {
-    File :: #import "std/file_linux";
-}
+File :: #import "std/file_linux";
 
 #scope_file
 Bytes :: (value: string) -> *u8 {
@@ -59,11 +55,10 @@ Cases :: () -> s32 {
        Config.EffectiveScrollback(null) != 5000 { return 1 }
     if Config.Apply(*config, Bytes("font_size"), Bytes("99")) != 0 || config.font_size != 16 { return 2 }
     path: [1024]u8
-    if Config.ResolvePath("/xdg", "/owner", false, path[:]) != "/xdg/terminal/config" ||
-       Config.ResolvePath("", "/owner", false, path[:]) != "/owner/.config/terminal/config" ||
-       Config.ResolvePath("/ignored", "/owner", true, path[:]) != "/owner/lib/terminal/config" ||
-       Config.ResolvePath("", "", false, path[:]) != "" ||
-       Config.ResolvePath("/xdg", "/owner", false, path[0:5]) != "" { return 3 }
+    if Config.ResolvePath("/xdg", "/owner", path[:]) != "/xdg/terminal/config" ||
+       Config.ResolvePath("", "/owner", path[:]) != "/owner/.config/terminal/config" ||
+       Config.ResolvePath("", "", path[:]) != "" ||
+       Config.ResolvePath("/xdg", "/owner", path[0:5]) != "" { return 3 }
     values: [26]Case = .[
         .{"font_size", "24"}, .{"scrollback", "12000"}, .{"unlimited_scrollback", "true"},
         .{"cursor_style", "bar"}, .{"dynamic_title_mode", "append"},

@@ -4,13 +4,8 @@
 Capture :: #import "terminal_capture_test";
 libc :: #system_library "c";
 CompareRaw :: (left: *void, right: *void, count: usize) -> s32 #foreign libc "memcmp";
-#if #defined(PLAN9) {
-    Track :: (failure: s32) { unused failure }
-    Stop :: () -> s32 { return 0 }
-} else {
-    Track :: (failure: s32) #foreign libc "capture_storage_track";
-    Stop :: () -> s32 #foreign libc "capture_storage_stop";
-}
+Track :: (failure: s32) #foreign libc "capture_storage_track";
+Stop :: () -> s32 #foreign libc "capture_storage_stop";
 
 SameReset :: (actual: *Terminal, expected: *Terminal) -> bool {
     // Ignore allocation addresses and unused physical ring capacity. Logical
@@ -94,18 +89,17 @@ main :: () -> s32 {
     if terminal_reset_capture(*actual, 8, 4) || actual.pid != 1234 || actual.main_cells != main_cells { return 1 }
     actual.pid = 0
     failures: s32
-    #if !#defined(PLAN9) {
     // Every allocation failure when replacing a smaller screen preserves
     // its entire prior state, including content and allocation ownership.
     for failure: 1..cast(s32)7 {
-        Dirty(*actual)
-        before := actual
-        Track(failure)
-        ok := terminal_reset_capture(*actual, 96, 30)
-        unused Stop()
-        if ok || CompareRaw(cast(*void)(*actual), cast(*void)(*before), size_of(Terminal)) != 0 {
-            print("Replacement allocation failure lost state: %\n", failure); return 1
-        }
+    Dirty(*actual)
+    before := actual
+    Track(failure)
+    ok := terminal_reset_capture(*actual, 96, 30)
+    unused Stop()
+    if ok || CompareRaw(cast(*void)(*actual), cast(*void)(*before), size_of(Terminal)) != 0 {
+        print("Replacement allocation failure lost state: %\n", failure); return 1
+    }
     }
     terminal_close(*actual); terminal_resize(*actual, 96, 30)
     main_cells = actual.main_cells
@@ -119,7 +113,6 @@ main :: () -> s32 {
     attempts := Stop()
     if !ok || attempts != 1 || actual.main_cells != main_cells { return 1 }
     failures = 8
-    }
     if terminal_reset_capture(null, 80, 24) { return 1 }
     print("Capture reset passed % mixed-state/reflow cases, 200 empty/long-history reuse cycles, % allocation-failure positions and attached/null guards\n", passed, failures)
     return 0

@@ -61,3 +61,9 @@ RasterImage :: (path: string, id: u32, source: Rectangle,
     unused path; unused id; unused source; unused destination; unused clip
     unused origin; unused rotation; unused radius; unused tint
 }
+#program_export
+RasterImageMesh :: (path: string, id: u32, source: Rectangle, points: []Vector2, columns: s32,
+    rows: s32, clip: Rectangle, tint: Color) {
+    unused path; unused id; unused source; unused points; unused columns
+    unused rows; unused clip; unused tint
+}

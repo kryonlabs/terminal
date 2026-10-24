@@ -1,26 +1,22 @@
 # Terminal Ziran migration
 
-Terminal's maintained source language is Ziran (`.zi`). Legacy `.kry` files are
-migration input only: each one is removed after its behavior has a current
-Ziran implementation and focused hosted/Plan 9 checks. No compatibility
+Terminal's maintained source language is Ziran (`.zi`). No compatibility
 compiler path, dual product module, or `.kry` restore is part of the target.
 
-Current status: maintained Ziran sources include the pane modules,
-clipboard storage/protocol handling, both platform process transports, and
-the full terminal engine and its typed state, application configuration,
-command-line options, sessions and their persistence, plus application state,
-tab lifecycle, selection/clipboard routing, palette and profile changes,
-commands, search dialogs, the context menu, application input routing and the
-menu bar, graphical view, shared application host and standalone OS entrypoint.
-No `.kry`, handwritten C product implementation or handwritten native header
+Current status: maintained Ziran sources include the pane modules, clipboard
+storage/protocol handling, both platform process transports, and the full
+terminal engine and its typed state, application configuration, command-line
+options, sessions and their persistence, plus application state, tab lifecycle,
+selection/clipboard routing, palette and profile changes, commands, search
+dialogs, the context menu, application input routing and the menu bar,
+graphical view, shared application host and standalone OS entrypoint. No
+`.kry`, handwritten C product implementation or handwritten native header
 remains. Native declarations are generated from the maintained Ziran modules.
 The parser benchmark also runs the same implementation from Ziran; the obsolete
-C fixtures and their mock old Kryon host have been retired.
-Linux standalone builds use current Kryon frames and Raylib/SDL2; the native
-entrypoint uses current Libdraw. Rill's actual host integration, native
-whole-application graphics and complete graphical font fallback checks remain
-unfinished. The migration is complete only when these behavior gates and all
-Linux, Rill, native Plan 9, installation and release routes are verified.
+C fixtures and their mock old Kryon host have been retired. Linux standalone
+builds use current Kryon frames and Raylib/SDL2; the native entrypoint uses
+current Libdraw. Rill's actual host integration, native whole-application
+graphics and complete graphical font fallback checks remain unfinished.
 
 ## Build boundary and consolidation
 
@@ -28,26 +24,17 @@ The canonical repository is `kryonlabs/terminal`. Its history includes Kapsule's
 original terminal sources and local compatibility fixes; those older C
 implementations are not restored alongside the maintained ports.
 
-`make pane-ziran-test` runs the engine, configuration, sessions, launch options,
-application state, tab lifecycle and input routing,
-widget, theme/profile, clipboard, selection, keyboard, OSC,
-pane sizing, and Linux PTY suites without the legacy application. Keyboard protocol and current
-Kryon session input are
-checked as native C/C++ and from saved IR. `make keys-plan9-test` with
-`TAIJI_DIR` set to the canonical Taiji checkout compiles and executes the
-same keyboard fixture from source and saved IR under native Plan 9 8c/8l.
-Raw-buffer pane APIs are native code; portable bundle coverage is not claimed.
-Detached complete-screen replay also belongs in Terminal. Its
-`terminal_feed_capture` uses the same parser with batched history evacuation
-for text and SGR; other commands retain ordinary parsing. The source and saved
-IR capture suite compares all cells, styles, combining marks, wrap flags,
-cursor positions and history across later feeds and reflow in C and C++,
-and executes under native Plan 9 8c/8l from source and saved IR.
-`make clipboard-plan9-c` emits the clipboard fixture's Plan 9 C output;
-`make clipboard-plan9-test selection-plan9-test` compiles and executes the
-selection, clipboard actions, and OSC52/paste fixtures with native 8c/8l. The
-clipboard port keeps primary-selection preference, soft-wrap copying,
-host sync/flush, paste callback routing, and scroll reset behavior.
+`make pane-ziran-test` runs the engine, configuration, sessions, launch
+options, application state, tab lifecycle and input routing, widget,
+theme/profile, clipboard, selection, keyboard, OSC, pane sizing, and Linux PTY
+suites without the legacy application. Keyboard protocol and current Kryon
+session input are checked as native C and from saved IR. Raw-buffer pane
+APIs are native code; portable bundle coverage is not claimed. Detached
+complete-screen replay also belongs in Terminal. Its `terminal_feed_capture`
+uses the same parser with batched history evacuation for text and SGR; other
+commands retain ordinary parsing. The clipboard port keeps primary-selection
+preference, soft-wrap copying, host sync/flush, paste callback routing, and
+scroll reset behavior.
 
 The standalone application now uses only the current `.zi` implementation.
 Rill's legacy desktop entrypoint still calls the removed Kryon C host API and
@@ -83,7 +70,7 @@ locked application builds remain part of the unfinished migration gate.
 
 ## OSC, metrics, and process transports
 
-Clipboard checks now run the product implementation in C/C++ from source and
+Clipboard checks now run the product implementation in C from source and
 saved IR. They preserve independent primary/system values, primary preference,
 pending writes, host retry and fallback, selection copy, and scroll reset.
 OSC52 rejects malformed, noncanonical, oversized and embedded-NUL payloads
@@ -94,33 +81,24 @@ retain a string view into the tab's former address.
 
 `terminal_pane_osc.zi` replaces the old OSC module. Color and palette parsing,
 bounded replies, sanitized title/hyperlink text, title-stack operations, and
-file-URI decoding pass C/C++ and saved-IR behavior checks. `make osc-plan9-test`
-also compiles, links, and executes both fixtures with actual Plan 9 8c/8l.
+file-URI decoding pass C and saved-IR behavior checks.
 
 `terminal_pane_metrics.zi` replaces `runtime/terminal_pane.kry` and its old C
 policy test. Sizing, clamping, content bounds, and scroll-indicator placement
-pass source and saved-IR checks in C, C++, Go, and portable bundles.
-`make metrics-plan9-test` also passes native 8c/8l execution for both fixtures.
+pass source and saved-IR checks in C, Go, and portable bundles.
 
-`terminal_pty_linux.zi` and `terminal_pty_plan9.zi` replace the handwritten C
-transports. Linux retains pseudoterminal setup, shell argument selection,
-working-directory and environment setup, nonblocking I/O, resizing, child
-reaping, and bounded process-group shutdown. Plan 9 uses private child note
-groups and namespaces and a reader-owned spool so polling does not block the
-UI thread. Private namespaces allow group-note delivery even when the host
-inherits Plan 9's protected initial namespace.
-Transport sessions are keyed by descriptors, so moving tabs does not require
-rebinding pointers to application state. Both use the shared engine/process
-driver; Rill's Plan 9 build no longer supplies a second process implementation.
+Linux retains pseudoterminal setup, shell argument selection, working-directory
+and environment setup, nonblocking I/O, resizing, child reaping, and bounded
+process-group shutdown. Transport sessions are keyed by descriptors, so moving
+tabs does not require rebinding pointers to application state. Both use the
+shared engine/process driver;
 
 `make pty-test` exercises real Linux child I/O, resize, exit, and group signals
-from C/C++ source and saved IR, using a controlled shell without owner startup
-files. `make pty-plan9-test` exercises real child I/O, EOF, exit, and notes from
-source and saved IR under native Plan 9. Native gates use one CPU, 256 MB, and
-a 120-second limit, with desktop displays scrubbed and desktop boot disabled.
-`make pty-native` builds the Linux transport objects used by the app; `make
-pty-plan9-c` emits the corresponding Plan 9 library output. These focused
-checks do not certify the remaining legacy application or Rill integration.
+from C source and saved IR, using a controlled shell without owner startup
+files. Native gates use one CPU, 256 MB, and a 120-second limit, with desktop
+displays scrubbed and desktop boot disabled. `make pty-native` builds the Linux
+transport objects used by the app; These focused checks do not certify the
+remaining legacy application or Rill integration.
 
 ## Terminal engine
 
@@ -131,11 +109,10 @@ these Ziran declarations. There is no second handwritten native interface.
 
 `make terminal-test` executes the actual parser, screen, scrollback, resize,
 search, graphics, title/color/clipboard protocols, terminal reports, keyboard,
-mouse, focus, paste, and real child-process driver in C and C++ from source
-and saved IR. `make terminal-plan9-test` executes the same fixture under actual
-Plan 9 8c/8l from both forms. Its report/input sink uses an owned child transport
-session; native pipes need explicit newline mode for LF-only rc output.
-Clipboard host I/O is simulated, while product clipboard policy remains real.
+mouse, focus, paste, and real child-process driver in C from source and
+saved IR. Its report/input sink uses an owned child transport session; native
+pipes need explicit newline mode for LF-only rc output. Clipboard host I/O is
+simulated, while product clipboard policy remains real.
 
 Boundary checks cover chunked Unicode titles, atomic oversized OSC rejection,
 clipboard payloads larger than 512 bytes, saturated CSI parameters, full
@@ -144,23 +121,20 @@ ring's limit. Screen/history allocation replaces buffers only after success;
 width changes allocate a fresh history ring even when the previous ring is empty.
 
 `make terminal-native` builds `libterminal.a` with all generated native
-dependencies. `make terminal-plan9-c` emits the corresponding Plan 9 library
-sources. These library gates do not establish a working complete application.
+dependencies. These library gates do not establish a working complete
+application.
 
 ## Application configuration
 
-`src/app/app_config.zi` replaces `app_config.kry`. It uses the existing
-`TerminalPaneProfileSettings` record directly and imports standard Ziran file
-modules for Linux and native Plan 9. The defaults, limits, XDG/home path rules,
-escaped text, colors, and all 26 persisted settings are retained. The reader
-handles maximum-length escaped commands across file chunks and ignores an
-oversized setting line as a whole; failed serialization cannot truncate a file.
+`src/app/app_config.zi` replaces `app_config.kry`. The defaults, limits,
+XDG/home path rules, escaped text, colors, and all 26 persisted settings are
+retained. The reader handles maximum-length escaped commands across file chunks
+and ignores an oversized setting line as a whole; failed serialization cannot
+truncate a file.
 
-`make config-test` verifies source/saved-IR C and C++ execution, and
-`make config-plan9-test` verifies actual native 8c/8l execution for both forms.
-Every file fixture lives inside its disposable generated-output folder.
-The remaining app consumers must use this module's `Defaults`, `Apply`,
-`Load`, `Save`, and `EffectiveScrollback` APIs with the canonical settings type.
+Every file fixture lives inside its disposable generated-output folder. The
+remaining app consumers must use this module's `Defaults`, `Apply`, `Load`,
+`Save`, and `EffectiveScrollback` APIs with the canonical settings type.
 
 ## Embedded pane and themes
 
@@ -172,10 +146,8 @@ and supports a complete 240-by-120 grid without borrowing temporary cell text.
 Theme colors come from current Kryon palette/style rules; test-only legacy
 theme and rendering implementations are removed.
 
-`make widget-test profile-test` checks source and saved-IR C/C++ behavior,
-including real child-process keyboard input and current theme rules. `make
-widget-plan9-test` passes the same widget fixture under native 8c/8l. `make
-pane-native pane-plan9-c` produces the migrated pane's native library/output.
+`make widget-test profile-test` checks source and saved-IR C behavior,
+including real child-process keyboard input and current theme rules.
 
 ## Sessions and launch options
 
@@ -193,15 +165,13 @@ overflow and tiny title buffers remain terminated.
 
 `app_launch_options.zi` replaces the legacy option parser, retaining per-tab
 launch specifications, terminal settings and supported desktop option aliases.
-Missing required values now report an error. Execute arguments use POSIX shell
-quoting on Linux and rc quoting on native Plan 9.
+Missing required values now report an error.
 
-`make session-test launch-test` checks source and saved-IR C/C++ execution;
-`make session-plan9-test launch-plan9-test` checks actual native 8c/8l execution.
+`make session-test launch-test` checks source and saved-IR C execution;
 Sessions exercise real child I/O after a tab move and execute arguments
 containing spaces and apostrophes through the actual platform shell. File
-fixtures stay inside disposable test-output directories. Native QEMU gates
-also cap the translation buffer at 32 MB.
+fixtures stay inside disposable test-output directories. Native QEMU gates also
+cap the translation buffer at 32 MB.
 
 ## Application state and tab lifecycle
 
@@ -225,14 +195,13 @@ width and color changes to existing tabs, and report font-file changes for
 the application host to load. The six corresponding `.kry` implementations
 are removed.
 
-`make application-test` checks source and saved-IR C/C++ behavior using the
-actual engine, configuration, clipboard and process transports. It covers
-theme roles, profile updates, selection copying, tab moves and closes, live
-child I/O after movement, persistence and restored child sessions, last-tab
-replacement and exit. `make application-plan9-test` checks the same fixture
-with actual native 8c/8l execution. Fixtures use controlled shells and keep
-files inside their disposable generated-output folders. These checks do not
-yet establish the full graphical application or its Rill host.
+`make application-test` checks source and saved-IR C behavior using the
+actual engine, configuration, clipboard and process transports. It covers theme
+roles, profile updates, selection copying, tab moves and closes, live child I/O
+after movement, persistence and restored child sessions, last-tab replacement
+and exit. Fixtures use controlled shells and keep files inside their disposable
+generated-output folders. These checks do not yet establish the full graphical
+application or its Rill host.
 
 ## Commands, search and context menu
 
@@ -250,11 +219,8 @@ close, copy without a selection and unavailable primary paste remain disabled.
 Menus retain outside-click and Escape dismissal and consume their typed input
 so an overlay cannot leave text queued for the terminal.
 
-`make application-test application-plan9-test` covers source and saved-IR
-C/C++ and native Plan 9 8c/8l execution, including actual retained-tree clicks
-on dialog and menu actions, disabled rows and outside dismissal. The three
-corresponding `.kry` implementations are removed. These checks do not yet
-establish the graphical application or Rill.
+The three corresponding `.kry` implementations are removed. These checks do not
+yet establish the graphical application or Rill.
 
 ## Application input routing
 
@@ -267,14 +233,14 @@ Keyboard state belongs to the application. Repeated app shortcuts are consumed
 without repeating their action, while repeated terminal Control keys still write.
 The old held-shortcut flags are removed from the typed app state.
 
-`make input-test input-plan9-test` executes source and saved-IR C/C++ and
-native Plan 9 8c/8l behavior. It checks actual bytes through controlled child
-processes, Unicode, held/repeated keys, selection, scroll limits, current Kryon
-input capture, dialog ownership and pointer visibility decisions. Hosts supply
-middle-button edges, time and focus and apply the returned hyperlink/cursor
-decisions. Complete hosts must also distinguish fresh and repeated device keys;
-the protocol fixture verifies that distinction at the explicit frame boundary.
-These module checks do not certify the remaining graphical host or live OS input.
+It checks actual bytes through controlled child processes, Unicode,
+held/repeated keys, selection, scroll limits, current Kryon input capture,
+dialog ownership and pointer visibility decisions. Hosts supply middle-button
+edges, time and focus and apply the returned hyperlink/cursor decisions.
+Complete hosts must also distinguish fresh and repeated device keys; the
+protocol fixture verifies that distinction at the explicit frame boundary.
+These module checks do not certify the remaining graphical host or live OS
+input.
 
 ## Application menu bar
 
@@ -292,13 +258,11 @@ restore those keys to terminal input. Repeated F10 events are consumed without
 toggling focus. Hosts pass the key's fresh/repeated status when composing
 the menu; the remaining whole-application host gates must verify OS events.
 
-`make application-test input-test` checks source/saved-IR C and C++ behavior,
+`make application-test input-test` checks source/saved-IR C behavior,
 including retained-tree clicks, cursor choices, tab lifecycle, Find, long-menu
-scrolling and actual terminal bytes. `make application-plan9-test
-input-plan9-test` checks the same fixtures with native Plan 9 8c/8l execution.
-Kryon's generic menu also passes C/C++/Go and portable source/saved-IR checks.
-The legacy menu implementation and handwritten header are removed. These
-gates do not establish complete graphical
+scrolling and actual terminal bytes. Kryon's generic menu also passes C/Go
+and portable source/saved-IR checks. The legacy menu implementation and
+handwritten header are removed. These gates do not establish complete graphical
 application or Rill builds.
 
 ## Application graphical view
@@ -317,12 +281,10 @@ double-click renaming and reordering through Kryon's retained `TabBar`.
 Dialogs retain keyboard and button actions; applying a font-file setting
 reports the change to the host so it can load the new source.
 
-`make view-test` checks source and saved-IR execution in C and C++;
-`make view-plan9-test` checks the same fixture with actual native Plan 9
-8c/8l execution. The fixtures verify queued glyph and image ownership,
-rendering, clipping, cursor and scroll behavior, tab lifecycle and dialog
-actions. These checks do not establish whole-application graphics, host font
-loading or OS input.
+`make view-test` checks source and saved-IR execution in C; The
+fixtures verify queued glyph and image ownership, rendering, clipping, cursor
+and scroll behavior, tab lifecycle and dialog actions. These checks do not
+establish whole-application graphics, host font loading or OS input.
 
 ## Shared application host
 
@@ -342,8 +304,7 @@ hold behavior and reports when the last child exits. Embedded views use the
 containing application's installed theme rules. Hosts can import the
 package's `terminal/app_host` export; Terminal code remains in this repository.
 
-`make host-test` checks source and saved-IR execution in C and C++;
-`make host-plan9-test` checks actual native Plan 9 8c/8l execution. They use
+`make host-test` checks source and saved-IR execution in C; They use
 controlled real child processes to verify focus reports, Unicode input,
 Control-key repeats, held-key suppression, modal input ownership, title and
 clipboard updates, exit and hold behavior, middle-click positions, saved
@@ -352,21 +313,17 @@ OS host, Rill's actual embedded integration or installation/release routes.
 
 ## Standalone OS host
 
-`app_main.zi` owns the Linux and native Plan 9 entrypoints and runs the shared
-Terminal lifecycle. `app_window.zi` gathers OS input and manages only its own
-window, fonts, title, cursor and configured capture. Linux uses current Kryon
-Raylib over SDL2; native Plan 9 uses current Libdraw and libthread. Geometry,
-window flags, held/repeated keyboard events, frame rates, font configuration,
-CLI routes and native forwarding to Rill retain their explicit host boundary.
-The legacy entrypoint and C entry shim are removed, and the Makefile no longer
-invokes k2c or the removed Kryon C library build.
+`app_window.zi` gathers OS input and manages only its own window, fonts, title,
+cursor and configured capture. Geometry, window flags, held/repeated keyboard
+events, frame rates, font configuration, CLI routes and native forwarding to
+Rill retain their explicit host boundary. The legacy entrypoint and C entry
+shim are removed, and the Makefile no longer invokes k2c or the removed Kryon C
+library build.
 
-`make standalone-test` verifies the actual executable in C and C++ from source
+`make standalone-test` verifies the actual executable in C from source
 and saved IR on private Xvfb displays. It covers CLI routes, a rendered frame,
 real child input, held-key suppression, Control repeats, menu ownership and
 owned-window closing. `make install-test` verifies a disposable staged install.
-`make standalone-plan9-test` compiles and links the complete executable with
-actual native 8c/8l, then exercises its CLI and Rill forwarding from both forms.
 The native gate uses one CPU, 256 MB RAM, a 32 MB translation buffer and a
 120-second limit, with desktop boot disabled.
 
@@ -378,25 +335,21 @@ single maintained implementation while this remaining work proceeds.
 Linux font fallback now uses Kryon's installed outline-font matching and
 retained TrueType/OpenType collection sources. Missing CJK and supplementary
 characters use the same glyph sources and advances for measurement and
-painting; queued text is flushed before replacing an atlas. Kryon's
-`make raylib-typeface-test` passes real font decoding, collection bounds and
-checksums, mixed-script routing and disposal in C/C++ from source and saved IR.
-Only texture allocation and graphics submission are replaced in that check.
-The Linux Terminal executable also builds against these canonical sources and
-passes its CLI routes. Actual private-display captures and native Plan 9 font
-behavior remain unverified: the sandbox cannot create Xvfb sockets, and the
-full system disk prevents automatic approval review for the isolated tests.
+painting; queued text is flushed before replacing an atlas. Kryon's `make
+raylib-typeface-test` passes real font decoding, collection bounds and
+checksums, mixed-script routing and disposal in C from source and saved IR.
+Only texture allocation and graphics submission are replaced in that check. The
+Linux Terminal executable also builds against these canonical sources and
+passes its CLI routes.
 
-`make standalone-plan9-graphics-test` now prepares the complete executable
-from source and saved IR and compares captures from an empty terminal and a
-real child emitting ANSI truecolor and text. It checks the native viewport,
-opaque capture bytes, colored cells and glyph pixels on Terminal's owned
-offscreen render target. It scrubs desktop connections, uses private Xvfb and
-keeps the existing one-CPU, 256 MB, 120-second guest limits. Configuration and
-session files stay in a disposable guest home. This gate is not yet verified:
-the sandbox blocks QEMU's guest filesystem connection, and automatic approval
-review cannot initialize while the system disk is full. It does not replace
-the remaining native device-input or font-fallback checks.
+It checks the native viewport, opaque capture bytes, colored cells and glyph
+pixels on Terminal's owned offscreen render target. It scrubs desktop
+connections, uses private Xvfb and keeps the existing one-CPU, 256 MB,
+120-second guest limits. Configuration and session files stay in a disposable
+guest home. This gate is not yet verified: the sandbox blocks QEMU's guest
+filesystem connection, and automatic approval review cannot initialize while
+the system disk is full. It does not replace the remaining native device-input
+or font-fallback checks.
 
 ## Native interfaces and parser benchmarks
 
@@ -404,7 +357,7 @@ Embedded hosts can paint while unfocused without consuming their containing
 desktop's key, text, wheel or retained pointer activation. Closing an embedded
 host preserves the standalone application's saved tabs. `make host-test`
 checks background menus and input preservation, controlled child I/O, and
-standalone session restoration after embedded disposal in C/C++ from source
+standalone session restoration after embedded disposal in C from source
 and saved IR. Rill owns window placement and closing; Terminal owns its child
 processes and tab state.
 
@@ -415,7 +368,7 @@ configuration, launch, session, input, view and host fixtures. Each consumes
 the maintained product modules rather than a mock legacy UI library.
 
 `make parser-replay` runs all 13 historical parser workloads against that same
-engine. `make parser-replay-test` executes reduced runs in C and C++ from source
+engine. `make parser-replay-test` executes reduced runs in C from source
 and saved IR. Golden row and byte counts were derived from the original C
 payloads before retiring it; they verify Unicode, padding, hex formatting and
 control sequences without treating benchmark timings as performance claims.
@@ -453,7 +406,6 @@ No display or owner shell startup is needed. Native output is disposable under
 - `src/terminal_clipboard.zi`
 - `src/terminal_drop.zi`
 - `src/terminal_pty_linux.zi`
-- `src/terminal_pty_plan9.zi`
 - `src/terminal.zi` and its loaded `src/engine/*.zi` modules
 - `src/app/app_config.zi`
 - `src/terminal_pane/terminal_pane_widget.zi`

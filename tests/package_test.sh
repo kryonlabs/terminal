@@ -65,8 +65,5 @@ for form in source saved; do
     if test "$form" = saved; then input=ir/consumer.zir; fi
     "$compiler" build --project $consumer_flags --target=c --entry consumer:main --exe -o "$form-c" "$input"
     timeout --kill-after=2s 15s "./$form-c/consumer"
-    "$compiler" build --project $consumer_flags --target=cpp --entry consumer:main -o "$form-cpp" "$input"
-    "${CXX:-c++}" -std=c++17 -O1 -I"$form-cpp" "$form-cpp"/*.cpp -o "$form-cpp/run"
-    timeout --kill-after=2s 15s "./$form-cpp/run"
 done
-echo 'External Terminal package consumer passed C/C++ from source and saved IR'
+echo 'External Terminal package consumer passed C from source and saved IR'

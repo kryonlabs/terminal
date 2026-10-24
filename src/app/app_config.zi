@@ -5,16 +5,9 @@ Settings :: #import "terminal_pane_profile_settings";
 Profile :: #import "terminal_pane_profile";
 Text :: #import "std/byte_text_linux";
 Number :: #import "std/number_text";
-#if #defined(PLAN9) {
-    File :: #import "std/file_plan9";
-} else {
-    File :: #import "std/file_linux";
-}
+File :: #import "std/file_linux";
 libc :: #system_library "libc";
 Environment :: (name: *s8) -> *s8 #foreign libc "getenv";
-#if #defined(PLAN9) {
-    FreeHost :: (value: *void) #foreign libc "free";
-}
 
 Bytes :: (value: string) -> *u8 {
     descriptor := cast(*Text.TextDescriptor)(*value)
@@ -135,11 +128,10 @@ EffectiveScrollback :: (config: *Types.TerminalPaneProfileSettings) -> s32 {
     return config.scrollback_limit
 }
 
-ResolvePath :: (xdg: string, home: string, plan9: bool, output: []u8) -> string {
+ResolvePath :: (xdg: string, home: string, output: []u8) -> string {
     root := home
     suffix := "/.config/terminal/config"
-    if plan9 { suffix = "/lib/terminal/config" }
-    else if xdg != "" { root = xdg; suffix = "/terminal/config" }
+    if xdg != "" { root = xdg; suffix = "/terminal/config" }
     if root == "" || root.count + suffix.count >= output.count { return "" }
     used: s64
     for index: cast(s64)0..root.count - 1 { output[used] = root[index]; used += 1 }
@@ -149,15 +141,8 @@ ResolvePath :: (xdg: string, home: string, plan9: bool, output: []u8) -> string 
 }
 
 Path :: (output: []u8) -> string {
-    #if #defined(PLAN9) {
-        home := Environment(cast(*s8)Bytes("home"))
-        result := ResolvePath("", Text.TextFromCString(cast(*u8)home), true, output)
-        FreeHost(cast(*void)home)
-        return result
-    } else {
-        return ResolvePath(Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("XDG_CONFIG_HOME"))),
-                           Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("HOME"))), false, output)
-    }
+    return ResolvePath(Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("XDG_CONFIG_HOME"))),
+                       Text.TextFromCString(cast(*u8)Environment(cast(*s8)Bytes("HOME"))), output)
 }
 
 LoadFile :: (config: *Types.TerminalPaneProfileSettings, path: string) -> bool {

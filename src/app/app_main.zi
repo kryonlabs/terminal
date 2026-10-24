@@ -6,11 +6,7 @@ Launch :: #import "app_launch_options";
 Frames :: #import "kryon/session";
 Frame :: #import "kryon/Frame";
 Bytes :: #import "std/byte_text_linux";
-#if #defined(PLAN9) {
-    Files :: #import "std/file_plan9";
-} else {
-    Files :: #import "std/file_linux";
-}
+Files :: #import "std/file_linux";
 libc :: #system_library "c";
 Allocate :: (count: usize, size: usize) -> *void #foreign libc "calloc";
 Release :: (memory: *void) #foreign libc "free";
@@ -94,35 +90,5 @@ Main :: (argc: s32, argv: **s8) -> s32 {
     return Run(arguments)
 }
 #scope_export
-#if #defined(PLAN9) {
-    thread_library :: #system_library "thread";
-    ThreadStart :: #type (value: *void) #c_call;
-    ThreadCreate :: (start: ThreadStart, value: *void, stack: u32) -> s32 #foreign thread_library "threadcreate";
-    ThreadExits :: (status: *s8) #foreign thread_library "threadexits";
-    ThreadExitsAll :: (status: *s8) #foreign thread_library "threadexitsall";
-    process_argc: s32;
-    process_argv: **s8;
-    #program_export
-    ApplicationThread :: (value: *void) {
-        unused value
-        if Main(process_argc, process_argv) == 0 { ThreadExitsAll(null) }
-        else {
-            status := "Terminal failed"
-            descriptor := cast(*Bytes.TextDescriptor)(*status)
-            ThreadExitsAll(cast(*s8)descriptor.data)
-        }
-    }
-    #program_export
-    threadmain :: (argc: s32, argv: **s8) {
-        process_argc = argc; process_argv = argv
-        if ThreadCreate(ApplicationThread, null, 1048576) < 0 {
-            status := "Could not start Terminal"
-            descriptor := cast(*Bytes.TextDescriptor)(*status)
-            ThreadExitsAll(cast(*s8)descriptor.data)
-        }
-        ThreadExits(null)
-    }
-} else {
-    #program_export
-    main :: (argc: s32, argv: **s8) -> s32 { return Main(argc, argv) }
-}
+#program_export
+main :: (argc: s32, argv: **s8) -> s32 { return Main(argc, argv) }

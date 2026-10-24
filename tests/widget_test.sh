@@ -24,10 +24,5 @@ for form in source saved; do
     "$ziran" build --project $lock_flags --target=c --entry "$entry" \
         --exe -o "$work/$form-c" "$input"
     TERMINAL_TEST_SHELL="$work/shell" timeout --kill-after=2s 15s "$work/$form-c/terminal_pane_widget_test"
-    "$ziran" build --project $lock_flags --target=cpp --entry "$entry" \
-        -o "$work/$form-cpp" "$input"
-    "${CXX:-c++}" -std=c++17 -O1 -I"$work/$form-cpp" \
-        "$work/$form-cpp"/*.cpp -o "$work/$form-cpp/run"
-    TERMINAL_TEST_SHELL="$work/shell" timeout --kill-after=2s 15s "$work/$form-cpp/run"
 done
-echo 'Terminal pane source and saved IR passed C/C++ rendering and real process input'
+echo 'Terminal pane source and saved IR passed C rendering and real process input'

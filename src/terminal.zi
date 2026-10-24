@@ -18,11 +18,7 @@ PaneTypes :: #import "terminal_pane_profile_types";
 Clipboard :: #import "terminal_clipboard";
 Text :: #import "std/byte_text_linux";
 
-#if #defined(PLAN9) {
-    Transport :: #import "terminal_pty_plan9";
-} else {
-    Transport :: #import "terminal_pty_linux";
-}
+Transport :: #import "terminal_pty_linux";
 
 #scope_export
 MAX_COLS :: 240;

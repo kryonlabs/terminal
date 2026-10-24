@@ -6,7 +6,7 @@ cd "$root"
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS ENV BASH_ENV
 target=${1:-c}
 form=${2:-source}
-case "$target" in c|cpp) ;; *) echo 'Expected c or cpp' >&2; exit 2 ;; esac
+case "$target" in c) ;; *) echo 'Expected c' >&2; exit 2 ;; esac
 case "$form" in source|saved) ;; *) echo 'Expected source or saved' >&2; exit 2 ;; esac
 ziran=${ZIRAN:-"$root/scripts/ziran.sh"}
 lock_flags=
@@ -21,7 +21,6 @@ if test "$form" = saved; then
 fi
 "$ziran" build --project $lock_flags --define CAPTURE_REPLAY --target="$target" \
     --entry capture_replay:main -o "$work/generated" "$input"
-if test "$target" = c; then compiler=${CC:-cc}; standard=c11
-else compiler=${CXX:-c++}; standard=c++17; fi
+compiler=${CC:-cc}; standard=c11
 "$compiler" -std="$standard" -O2 -I"$work/generated" "$work/generated"/*."$target" -o "$work/run"
 timeout --kill-after=2s 30s "$work/run"

@@ -7,12 +7,8 @@ Text :: #import "std/byte_text_linux";
 Numbers :: #import "std/number_text";
 libc :: #system_library "c";
 EnvironmentHost :: (name: *s8) -> *s8 #foreign libc "getenv";
-#if #defined(PLAN9) {
-    FreeHost :: (value: *void) #foreign libc "free";
-} else {
-    HostnameHost :: (output: *s8, capacity: usize) -> s32 #foreign libc "gethostname";
-    ReadLinkHost :: (path: *s8, output: *s8, capacity: usize) -> s64 #foreign libc "readlink";
-}
+HostnameHost :: (output: *s8, capacity: usize) -> s32 #foreign libc "gethostname";
+ReadLinkHost :: (path: *s8, output: *s8, capacity: usize) -> s64 #foreign libc "readlink";
 
 Bytes :: (value: string) -> *u8 {
     descriptor := cast(*Text.TextDescriptor)(*value)
@@ -32,9 +28,6 @@ Append :: (output: []u8, used: *s64, value: string) {
 Environment :: (name: string, output: []u8) -> string {
     raw := cast(*u8)EnvironmentHost(cast(*s8)Bytes(name))
     result := CopyText(output, Text.TextFromCString(raw))
-    #if #defined(PLAN9) {
-        FreeHost(cast(*void)raw)
-    }
     return result
 }
 
@@ -49,19 +42,11 @@ ShortTitle :: (output: []u8, value: string) {
 
 SetDefaultTitle :: (session: *Session) {
     home: [1024]u8; user: [128]u8; host: [256]u8
-    #if #defined(PLAN9) {
-        Environment("home", home[:])
-    } else {
-        Environment("HOME", home[:])
-    }
+    Environment("HOME", home[:])
     if Environment("USER", user[:]) == "" { Environment("user", user[:]) }
     if Environment("HOSTNAME", host[:]) == "" {
-        #if #defined(PLAN9) {
-            Environment("sysname", host[:])
-        } else {
-            if HostnameHost(cast(*s8)(*host[0]), cast(usize)255) != 0 { host[0] = 0 }
-            host[255] = 0
-        }
+        if HostnameHost(cast(*s8)(*host[0]), cast(usize)255) != 0 { host[0] = 0 }
+        host[255] = 0
     }
     DefaultTitleFor(session, Text.TextFromCString(*home[0]),
         Text.TextFromCString(*user[0]), Text.TextFromCString(*host[0]), session.title[:])
@@ -79,11 +64,7 @@ SetShellTitle :: (session: *Session, value: string) -> bool {
     while path < value.count && value[path] == 32 { path += 1 }
     if path >= value.count { return false }
     home: [1024]u8
-    #if #defined(PLAN9) {
-        Environment("home", home[:])
-    } else {
-        Environment("HOME", home[:])
-    }
+    Environment("HOME", home[:])
     used: s64
     Append(session.title[:], *used, "Terminal - ")
     Append(session.title[:], *used, value[0:colon])
@@ -235,18 +216,16 @@ CurrentCwd :: (session: *Session, output: []u8) -> string {
     if session.terminal.current_directory[0] != 0 {
         return CopyText(output, Text.TextFromCString(*session.terminal.current_directory[0]))
     }
-    #if !#defined(PLAN9) {
-        if session.terminal.pid > 0 {
-            path: [64]u8; number: [16]u8
-            used: s64
-            Append(path[:], *used, "/proc/")
-            Append(path[:], *used, Numbers.FormatInteger(cast(s64)session.terminal.pid, number[:]))
-            Append(path[:], *used, "/cwd")
-            length := ReadLinkHost(cast(*s8)(*path[0]), cast(*s8)(*output[0]), cast(usize)(output.count - 1))
-            if length > 0 && length < output.count {
-                output[length] = 0
-                return TextView(output[0:length])
-            }
+    if session.terminal.pid > 0 {
+        path: [64]u8; number: [16]u8
+        used: s64
+        Append(path[:], *used, "/proc/")
+        Append(path[:], *used, Numbers.FormatInteger(cast(s64)session.terminal.pid, number[:]))
+        Append(path[:], *used, "/cwd")
+        length := ReadLinkHost(cast(*s8)(*path[0]), cast(*s8)(*output[0]), cast(usize)(output.count - 1))
+        if length > 0 && length < output.count {
+            output[length] = 0
+            return TextView(output[0:length])
         }
     }
     return CopyText(output, Text.TextFromCString(*session.cwd[0]))
