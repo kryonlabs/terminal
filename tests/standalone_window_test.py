@@ -139,7 +139,8 @@ def main():
                 run(["xdotool", "key", "Escape"], env)
                 time.sleep(0.15)
                 assert app.poll() is None, "Escape closed the Terminal window"
-                assert output.read_bytes() == before, "Menu input reached the terminal child"
+                assert output.read_bytes() == before, (
+                    "Menu input reached the terminal child", before, output.read_bytes(), log.read_text())
                 close_window(window, app.pid, env)
                 assert app.wait(timeout=5) == 0, log.read_text()
             finally:
