@@ -134,7 +134,9 @@ def main():
                 repeated = output.read_bytes()[5:]
                 assert 2 <= len(repeated) <= 12 and set(repeated) == {1}, repeated
                 before = output.read_bytes()
-                run(["xdotool", "key", "F10"], env)
+                # A modifier tap and shortcut can arrive during one frame.
+                # Neither may discard the following menu shortcut.
+                run(["xdotool", "key", "--delay", "0", "Shift_L", "F10"], env)
                 time.sleep(0.15)
                 run(["xdotool", "key", "Escape"], env)
                 time.sleep(0.15)

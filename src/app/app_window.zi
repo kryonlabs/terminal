@@ -30,6 +30,7 @@ HideCursor :: () #foreign raylib "HideCursor";
 OpenURL :: (value: *u8) -> s32 #foreign sdl "SDL_OpenURL";
 VideoError :: () -> *u8 #foreign sdl "SDL_GetError";
 
+
 EnvironmentText :: (name: string, output: []u8) -> string {
     key: [64]u8
     if !CString.CopyCString(name, key[:]) { return "" }
@@ -168,7 +169,14 @@ Sample :: (session: Frames.Session, now: float64, down: []s32) -> Host.DeviceFra
     result.focused = Runtime.RaylibFocused()
     Device.PointerWheelSend(session, pointer.x, pointer.y, Runtime.RaylibWheelMove())
     Device.KeyboardModifiersSend(session, Runtime.RaylibModifiers())
+    // Modifiers already have their own sampled state. Do not let their
+    // raw press consume the frame's key and discard a following shortcut.
     key := Runtime.RaylibPressedKey()
+    for event: 0..511 {
+        unused event
+        if key < 340 || key > 347 { break }
+        key = Runtime.RaylibPressedKeyRaw()
+    }
     if key == 0 { key = Runtime.RaylibRepeatedKey(); result.key_fresh = false }
     if key != 0 { Device.KeyboardSend(session, key) }
     count: s32
