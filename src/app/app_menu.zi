@@ -6,6 +6,8 @@ Keys :: #import "terminal_pane_keys";
 Frames :: #import "kryon/session";
 Menus :: #import "kryon/menu_props";
 using UI :: #import "kryon/Widgets";
+trace_c :: #system_library "c";
+TraceFlush :: (stream: *void) -> s32 #foreign trace_c "fflush";
 
 #scope_file
 Item :: (command: Commands.Command, label: string, accelerator: string = "") -> MenuItem {
@@ -30,6 +32,8 @@ HandleShortcut :: (app: *State.State, key: s32, mods: s32, fresh: bool = true) -
     }
     if !app.launch.show_menubar { return false }
     if key == 299 && app.config.disable_menu_shortcut == 0 {
+        print("menu F10 fresh=% focused=% open=%\n", fresh, app.menu.focused, app.menu.open_index)
+        unused TraceFlush(null)
         if fresh {
             if app.menu.focused || app.menu.open_index >= 0 { MenuStateInit(*app.menu) }
             else { app.menu.focused = true }
@@ -59,6 +63,10 @@ Draw :: (frame: Frames.Session, app: *State.State, bounds: Rectangle,
     owned := app.menu.focused || app.menu.open_index >= 0
     if owned {
         key := KeyboardTake(frame)
+        if key == KeyEscape {
+            print("menu Escape owned=% focused=% open=%\n", owned, app.menu.focused, app.menu.open_index)
+            unused TraceFlush(null)
+        }
         // UI modifier bits differ from Terminal's protocol modifier bits.
         modifiers := KeyboardModifiers(frame)
         mods: s32
