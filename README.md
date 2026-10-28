@@ -203,6 +203,10 @@ Terminal chrome and default terminal foreground/background/cursor colors follow
 the Kryon system theme. Explicit profile colors and OSC color changes stay in
 control until reset.
 
+Chinese, Japanese, Korean and other scripts use Kryon's per-glyph system-font
+fallback while the terminal keeps its monospace cell grid. Install a font
+covering the script, such as Noto Sans CJK, when the system has none.
+
 Use the Terminal menu to update profile defaults for shell, working directory,
 terminal font, font size, colors, selection colors, scrollback, cursor color,
 and cursor style. Changes are saved to the same config file and apply to

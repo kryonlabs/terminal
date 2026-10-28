@@ -3,6 +3,8 @@ using UI :: #import "kryon/Widgets";
 Sessions :: #import "kryon/session";
 Fields :: #import "kryon/text_input_props";
 Text :: #import "std/text_buffer";
+Tree :: #import "kryon/tree";
+Kinds :: #import "kryon/widget_kind";
 
 #scope_export
 // Kryon owns editing policy; Terminal owns the prompt's bounded storage.
@@ -33,7 +35,7 @@ Draw :: (session: Sessions.Session, key: u64, title: string, action: string,
     output: []u8, cursor: *s32, anchor: *s32, scroll_x: *s32,
     focused: *bool, input: Fields.TextFieldInput, scale: float32 = 1.0) -> s32 {
     if output.count <= 0 || output.count > 1024 || cursor == null || anchor == null ||
-        scroll_x == null || focused == null { return 0 }
+    scroll_x == null || focused == null { return 0 }
     if scale <= 0.0 { scale = 1.0 }
     frame_props: ModalFrameProps
     frame_props.key = key; frame_props.title = title
@@ -57,7 +59,13 @@ Draw :: (session: Sessions.Session, key: u64, title: string, action: string,
         field.value = Text.TextUntilNul(output)
         field.cursor = cursor.*; field.anchor = anchor.*; field.scroll_x = scroll_x.*
         field.focused = focused.*; field.max_bytes = cast(s32)output.count - 1
-        field.scale = scale; field.input = input
+        field.scale = scale
+        field.input = input
+        // Opening a prompt requests focus once. Saved focused state alone
+        // cannot take focus from the tab that opened this new field.
+        previous := Tree.TreePrevious(session, Tree.TreeCurrentParent(session), field.key,
+            cast(s32)Kinds.WidgetKind.WidgetKindTextField)
+        field.input.focus = input.focus || (focused.* && previous < 0)
         result := TextField(session, field)
         next_cursor = result.cursor; next_anchor = result.anchor; next_scroll = result.scroll_x
         next_focused = result.focused; committed = result.committed; escaped = result.escaped
