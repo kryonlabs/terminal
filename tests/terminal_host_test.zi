@@ -230,12 +230,19 @@ CheckMiddleClick :: () -> bool {
 CheckPersistence :: () -> bool {
     host: Host.Host
     defer Host.Close(*host)
-    if !Open(*host, EchoCommand(), false, false) { return false }
-    Records.SetTitle(*host.app.sessions[0], "restored host")
-    host.persist = true
-    if !Host.Close(*host, "host-fixture.sessions") || host.app != null { return Failure("close saved sessions") }
     args: [3]string = .{"terminal", "--shell", Shell()}
     error: [256]u8
+    if Host.Prepare(*host, args[:], error[:], false) != Launch.ParseResult.ParseOk { return false }
+    host.persist = true
+    if !Host.Start(*host, Bounds(), 0.0, "host-fixture.sessions") { return Failure("start plain window") }
+    Records.CopyText(host.app.sessions[0].command[:], EchoCommand())
+    Records.SetTitle(*host.app.sessions[0], "restored host")
+    if !Host.Close(*host, "host-fixture.sessions") || host.app != null { return Failure("close saved sessions") }
+    // A window launched for one command must not replace the plain window's tabs.
+    if !Open(*host, EchoCommand(), false, false) { return false }
+    Records.SetTitle(*host.app.sessions[0], "command host")
+    host.persist = true
+    if !Host.Close(*host, "host-fixture.sessions") { return Failure("command window close") }
     if Host.Prepare(*host, args[:], error[:], false) != Launch.ParseResult.ParseOk { return false }
     host.persist = true
     if !Host.Start(*host, Bounds(), 0.0, "host-fixture.sessions") || host.app.session_count != 1 ||

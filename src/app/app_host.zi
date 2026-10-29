@@ -58,6 +58,8 @@ Host :: struct {
     started: bool
     embedded: bool
     persist: bool
+    // Only a plain window restores and saves the shared tab session.
+    owns_session: bool
     burst_ms: s32
     fast_poll_until: float64
 }
@@ -120,8 +122,9 @@ Start :: (host: *Host, viewport: Rectangle, now: float64 = 0.0,
     app.next_theme_refresh = now + 2.0
     Records.CopyText(app.window_title[:], "Terminal")
     if Tabs.OpenLaunchSessions(app) == 0 {
+        host.owns_session = !host.embedded && host.persist && app.config.command[0] == 0
         restored: bool
-        if !host.embedded && host.persist { restored = Tabs.Restore(app, session_path) }
+        if host.owns_session { restored = Tabs.Restore(app, session_path) }
         if !restored { Tabs.Open(app) }
     }
     host.started = app.session_count > 0
@@ -215,7 +218,7 @@ Close :: (host: *Host, session_path: string = "") -> bool {
     if host == null { return true }
     saved: bool = true
     if host.app != null {
-        if host.started && host.persist && !host.embedded && host.app.session_count > 0 {
+        if host.started && host.owns_session && host.app.session_count > 0 {
             saved = Tabs.Save(host.app, session_path)
         }
         State.Dispose(host.app)
