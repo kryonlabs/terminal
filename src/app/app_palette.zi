@@ -6,6 +6,7 @@ Styles :: #import "kryon/style";
 Controls :: #import "kryon/control_props";
 Pane :: #import "terminal_pane_profile_colors";
 SystemTheme :: #import "kryon/SystemThemeLinux";
+SystemTokens :: #import "kryon/system_theme";
 
 Role :: (kind: s32, background: u32, foreground: u32) -> Styles.StyleData {
     base: Styles.StyleData
@@ -97,7 +98,11 @@ ApplySystemTheme :: (palette: *Palette) -> bool {
     Rule(*rules, Sheet.StyleKindTabBar(), system.base, system.text)
     Rule(*rules, Sheet.StyleKindTab(), system.base, system.text)
     Rule(*rules, Sheet.StyleKindTab(), system.selected, system.selected_text, 4)
+    Rule(*rules, Sheet.StyleKindMenu(), system.base, system.text)
+    Rule(*rules, Sheet.StyleKindMenuItem(), system.base, system.text)
     if !Sheet.InstallStyleRules(rules) { return false }
+    // The menu bar and dialogs read their border, muted and hover colors from tokens.
+    SystemTokens.SystemPaletteTokens(system)
     Defaults(palette)
     return true
 }
