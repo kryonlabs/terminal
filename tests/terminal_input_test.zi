@@ -197,6 +197,14 @@ CheckSelectionAndScroll :: () -> bool {
     if app.selection.dragging != 0 || Clipboard.CollectSelection(app, output[:]) == 0 || Text.TextFromCString(*output[0]) != "beta" {
         return Failure("Double-click word selection")
     }
+    Host.HostClipboardReset("")
+    copy_frame := Device(); copy_frame.right = .{true, true, true}
+    terminal.mouse_mode = 1000
+    Input.Handle(app, copy_frame, false)
+    terminal.mouse_mode = 0
+    if app.context_menu_open || Host.HostClipboardText() != "beta" || Host.write_count != 1 {
+        return Failure("Right-click copies selection without opening menu")
+    }
     frame.now = 1.3
     Input.Handle(app, frame, false)
     if Clipboard.CollectSelection(app, output[:]) == 0 || Text.TextFromCString(*output[0]) != "alpha beta gamma" {

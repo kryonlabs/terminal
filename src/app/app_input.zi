@@ -261,7 +261,10 @@ Handle :: (app: *State.State, frame: Frame, persist: bool = true) -> Result {
         app.keyboard_state = Keys.TerminalPaneInputState.{}
         return result
     }
-    if TerminalMouse(app, session, frame) {
+    if app.selection.active != 0 && Inside(app, frame) &&
+        (frame.right.down || frame.right.pressed || frame.right.released) {
+        if frame.right.released { Clipboard.CopySelection(app) }
+    } else if TerminalMouse(app, session, frame) {
         app.selection.active = 0; session.scroll_offset = 0; app.context_menu_open = false
     } else {
         if Inside(app, frame) && frame.wheel != 0.0 {

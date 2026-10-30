@@ -22,6 +22,8 @@ cat > "$work/shell" <<'SHELL'
 exec /bin/sh -c "$2"
 SHELL
 chmod 700 "$work/shell"
+mkdir "$work/completion-folder"
+export TERMINAL_COMPLETION_DIRECTORY="$work"
 entry=$module:main
 source=tests/$module.zi
 "$ziran" ir --project $lock_flags --entry "$entry" -o "$work/ir" "$source"

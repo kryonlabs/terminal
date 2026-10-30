@@ -36,7 +36,8 @@ session and display variables before creating their private display.
 The focused Ziran suites exercise the actual engine, configuration, sessions,
 launch options, application state, input, view, host, widget, clipboard and
 process transports.
-Hosts can import `terminal/app_host`; the host owns the surrounding frame,
+Hosts can import `terminal/app_host`; begin its frame with `Host.BeginFrame`
+so shell keys reach the terminal before retained widget navigation. The host owns the surrounding frame,
 device input and window operations.
 
 ## Embedding as a Ziran package

@@ -41,7 +41,7 @@ Open :: (host: *Host.Host, command: string = "", hold: bool = false,
 Draw :: (host: *Host.Host, frame: Frames.Session, fresh: bool = true,
     focused: bool = true, held: bool = false, middle: bool = false) -> Host.FrameResult {
     PaintHost.Reset()
-    Frame.BeginFrame(frame, cast(u64)1, Bounds())
+    Host.BeginFrame(host, frame, cast(u64)1, Bounds(), focused)
     device: Host.DeviceFrame
     device.now = 1.0; device.focused = focused; device.key_fresh = fresh
     device.middle.pressed = middle
@@ -121,6 +121,10 @@ CheckFrameOwnership :: () -> bool {
     host.app.menu.focused = false
     if Draw(*host, frame).node < 0 || !Observe(terminal, "\x1b[I") { return Failure("focus regain") }
     terminal.focus_reporting = 0
+    Input.KeyboardSend(frame, Input.KeyTab)
+    if Draw(*host, frame).input.wrote != 1 || !Observe(terminal, "\t") { return Failure("Tab must reach shell") }
+    Input.KeyboardSend(frame, Input.KeyBackspace)
+    if Draw(*host, frame).input.wrote != 1 || !Observe(terminal, "\x7f") { return Failure("Backspace after Tab must reach shell") }
     keys: [1]s32 = .{#char "A"}
     Input.KeyboardModifiersSend(frame, Input.KeyModifierControl)
     Input.KeyboardSend(frame, keys[0]); Input.TypedCodepointSend(frame, #char "a")
@@ -276,6 +280,53 @@ CheckPersistence :: () -> bool {
     return true
 }
 
+// Real Readline output (including a failed-completion bell) must keep input
+// responsive through the same frame boundary used by standalone/embedded hosts.
+CheckBashCompletion :: () -> bool {
+    host: Host.Host
+    defer Host.Close(*host)
+    command := "cd \"$TERMINAL_COMPLETION_DIRECTORY\"; exec env INPUTRC=/dev/null PS1='probe> ' bash --noprofile --norc -i"
+    if !Open(*host, command) { return false }
+    frame := Frames.SessionOpen(); defer Frame.CloseSession(frame)
+    terminal := *host.app.sessions[0].terminal
+    for attempt: 0..9 { unused Host.Poll(*host, 1.0); Pause(10) }
+    unused Draw(*host, frame)
+    text := "cd completion-fo"
+    for at: cast(s64)0..text.count - 1 {
+        Input.TypedCodepointSend(frame, cast(s32)text[at]); unused Draw(*host, frame)
+    }
+    Input.KeyboardSend(frame, Input.KeyTab)
+    if Draw(*host, frame).input.wrote != 1 { return Failure("Bash completion Tab") }
+    for attempt: 0..9 { unused Host.Poll(*host, 1.0); Pause(10) }
+    Input.KeyboardSend(frame, Input.KeyBackspace)
+    if Draw(*host, frame).input.wrote != 1 { return Failure("Bash completion Backspace") }
+    Input.KeyboardSend(frame, Input.KeyEnter); unused Draw(*host, frame)
+    for attempt: 0..9 { unused Host.Poll(*host, 1.0); Pause(10) }
+    // This succeeds only if Tab completed the unique directory and Backspace
+    // removed its trailing slash while leaving the completed directory name.
+    verify := "test \"$PWD\" = \"$TERMINAL_COMPLETION_DIRECTORY/completion-folder\" && printf 'COMPLETION_OK\\n'"
+    for at: cast(s64)0..verify.count - 1 {
+        Input.TypedCodepointSend(frame, cast(s32)verify[at]); unused Draw(*host, frame)
+    }
+    Input.KeyboardSend(frame, Input.KeyEnter); unused Draw(*host, frame)
+    for attempt: 0..19 { unused Host.Poll(*host, 1.0); Pause(10) }
+    found: bool
+    output: [512]u8
+    for row: 0..Engine.terminal_visible_line_count(terminal) - 1 {
+        Engine.terminal_visible_line(terminal, row, *output[0], 512)
+        if Text.TextFromCString(*output[0]) == "COMPLETION_OK" { found = true }
+    }
+    if !found { return Failure("Bash directory completion and subsequent input") }
+    // Force a no-match bell, then prove that Backspace still reaches Readline.
+    Input.TypedCodepointSend(frame, #char "z"); unused Draw(*host, frame)
+    Input.KeyboardSend(frame, Input.KeyTab); unused Draw(*host, frame)
+    for attempt: 0..9 { unused Host.Poll(*host, 1.0); Pause(10) }
+    Input.KeyboardSend(frame, Input.KeyBackspace)
+    if host.app.bell_until <= 1.0 { return Failure("Expected Readline completion bell") }
+    if Draw(*host, frame).input.wrote != 1 { return Failure("Backspace after completion bell") }
+    return true
+}
+
 #program_export
 main :: () -> s32 {
     if !CheckPreparation() { return 1 }
@@ -284,6 +335,7 @@ main :: () -> s32 {
     if !CheckExit(false) || !CheckExit(true) { return 4 }
     if !CheckMiddleClick() { return 5 }
     if !CheckPersistence() { return 6 }
+    if !CheckBashCompletion() { return 7 }
     print("Terminal shared host lifecycle and frame ownership passed\n")
     return 0
 }

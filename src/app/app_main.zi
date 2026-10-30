@@ -54,7 +54,7 @@ Run :: (arguments: []string) -> s32 {
         bounds := Window.Bounds()
         down: [512]s32
         device := Window.Sample(session, now, down[:])
-        if cast(s32)Frame.BeginFrame(session, cast(u64)1, bounds) != 0 {
+        if cast(s32)Host.BeginFrame(*host, session, cast(u64)1, bounds, device.focused) != 0 {
             Window.End()
             return Error("Terminal: could not begin a UI frame")
         }

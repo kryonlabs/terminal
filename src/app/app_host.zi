@@ -14,6 +14,7 @@ Input :: #import "app_input";
 Engine :: #import "terminal";
 Keys :: #import "terminal_pane_keys";
 Frames :: #import "kryon/session";
+Frame :: #import "kryon/Frame";
 Tree :: #import "kryon/tree";
 Device :: #import "kryon/tree_input";
 Text :: #import "std/text_buffer";
@@ -161,6 +162,20 @@ Poll :: (host: *Host, now: float64) -> PollResult {
     result.title_changed = UpdateTitle(app)
     result.quit = app.quit_requested
     return result
+}
+
+// The shell owns physical keys while no Terminal chrome is active. Reserve
+// them before Kryon's retained Tab/activation routing runs, then restore them
+// for Draw. Menus and dialogs retain normal widget keyboard navigation.
+BeginFrame :: (host: *Host, frame: Frames.Session, screen_key: u64,
+    bounds: Rectangle, focused: bool = true) -> Tree.FrameStatus {
+    key: s32
+    if host != null && host.app != null && focused && !Input.ModalActive(host.app) {
+        key = Device.KeyboardTake(frame)
+    }
+    status := Frame.BeginFrame(frame, screen_key, bounds)
+    if key != 0 { unused Device.KeyboardSend(frame, key) }
+    return status
 }
 
 Draw :: (host: *Host, frame: Frames.Session, bounds: Rectangle,
