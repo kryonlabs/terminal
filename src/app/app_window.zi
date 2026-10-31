@@ -168,21 +168,23 @@ Sample :: (session: Frames.Session, now: float64, down: []s32) -> Host.DeviceFra
     Device.TreeSecondaryPointerUpdate(session, Runtime.PollSecondaryPointer())
     result.focused = Runtime.RaylibFocused()
     Device.PointerWheelSend(session, pointer.x, pointer.y, Runtime.RaylibWheelMove())
-    Device.KeyboardModifiersSend(session, Runtime.RaylibModifiers())
-    // Modifiers already have their own sampled state. Do not let their
-    // raw press consume the frame's key and discard a following shortcut.
+    // A modifier press must not consume the frame's key and discard a following
+    // shortcut. It still counts when released again within this same frame.
+    modifiers := Runtime.RaylibModifiers()
     key := Runtime.RaylibPressedKey()
     for event: 0..511 {
         unused event
         if key < 340 || key > 347 { break }
+        modifiers |= Runtime.RaylibModifierBit(key)
         key = Runtime.RaylibPressedKeyRaw()
     }
+    Device.KeyboardModifiersSend(session, modifiers)
     if key == 0 { key = Runtime.RaylibRepeatedKey(); result.key_fresh = false }
     if key != 0 { Device.KeyboardSend(session, key) }
     count: s32
     for held: 1..511 {
         if Runtime.RaylibKeyDown(cast(s32)held) && count < down.count {
-            down[count] = cast(s32)held; count += 1
+            down[count] = Runtime.RaylibLayoutKey(cast(s32)held); count += 1
         }
     }
     result.down = down[0:count]
