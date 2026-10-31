@@ -752,6 +752,10 @@ size: s32) {
         // continue through the same parser that handles transport splits.
         consumed := feed_ascii_run(terminal, *bytes[i], size - i)
         if consumed > 0 { i += consumed; continue }
+        if bytes[i] == #char"\n" {
+            consumed = feed_line_feeds(terminal, *bytes[i], size - i)
+            if consumed > 0 { i += consumed; continue }
+        }
         feed_byte(terminal, bytes[i])
         i += 1
     }
@@ -785,4 +789,62 @@ feed_ascii_run :: (terminal: *Terminal, bytes: *u8, size: s32) -> s32 {
     }
     terminal.cursor_col += consumed
     return consumed
+}
+
+#scope_module
+// Output at the bottom margin of a scroll region would move the whole region
+// once per line. Starting at a line feed there, this takes the complete
+// "text\r\n" lines already in the buffer, scrolls once for all of them and
+// writes each line into the row it ends on. The region height bounds a batch,
+// so every row that reaches scrollback is one the screen held before, as when
+// the lines are fed one at a time. The whole main screen already scrolls by
+// sliding, which a batch would only slow down with a second pass over each line.
+feed_line_feeds :: (terminal: *Terminal, bytes: *u8, size: s32) -> s32 {
+    top := terminal.scroll_top
+    bottom := terminal.scroll_bottom
+    if size < 3 || bytes[0] != #char"\n" || terminal.capture_batch ||
+        (terminal.alternate_screen == 0 && top == 0 && bottom == terminal.rows - 1) ||
+        terminal_screen_cells(terminal) == null ||
+        terminal.parser_state != PARSER_TEXT || terminal.utf8_remaining != 0 ||
+        terminal.insert_mode != 0 || terminal.sixel_count != 0 ||
+        terminal.cursor_col != 0 || terminal.cursor_row != bottom ||
+        top < 0 || top > bottom || bottom >= terminal.rows ||
+        (ifx terminal.active_charset == 1 then terminal.g1_charset else terminal.g0_charset) == TERMINAL_CHARSET_DEC_SPECIAL {
+        return 0
+    }
+    cols := terminal.cols
+    lines: s32
+    at: s32 = 1
+    while lines < bottom - top {
+        length: s32
+        while at + length < size && length <= cols &&
+            bytes[at + length] >= 32 && bytes[at + length] < 127 {
+            length += 1
+        }
+        if length > cols || at + length + 1 >= size ||
+            bytes[at + length] != #char"\r" || bytes[at + length + 1] != #char"\n" {
+            break
+        }
+        at += length + 2
+        lines += 1
+    }
+    if lines == 0 { return 0 }
+    terminal_scroll_up(terminal, top, bottom, lines + 1)
+    // Scrolling the whole main screen slides it, so fetch the cells afterwards.
+    cells := terminal_screen_cells(terminal)
+    cell := terminal_blank_cell(terminal)
+    at = 1
+    row := bottom - lines
+    while row < bottom {
+        index := row * cols
+        while bytes[at] != #char"\r" {
+            cell.codepoint = cast(u32)bytes[at]
+            cells[index] = cell
+            index += 1; at += 1
+        }
+        at += 2
+        row += 1
+    }
+    terminal_clamp_cursor(terminal)
+    return at
 }

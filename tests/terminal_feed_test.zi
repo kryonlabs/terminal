@@ -71,6 +71,20 @@ CheckChunks :: () -> s32 {
             }
         }
     }
-    print("Terminal chunks match byte parsing across Unicode, wrapping, modes and cell styles\n")
+    // Line floods at a bottom margin scroll once per batch of complete lines.
+    // Batches end at region height, wraps, styles, links, UTF-8, bare line
+    // feeds, DEC graphics and insert mode; rows pushed to scrollback must match.
+    // The alternate screen batches full-screen scrolls; the main screen slides.
+    region := "\x1b[2;5r\x1b[5;1Hone\r\ntwo\r\n\r\nthree3\r\nfour4444\r\nexactly-sixteen!\r\nlonger than sixteen columns\r\n\x1b[31mred\r\nline\x1b[0m\r\n\x1b]8;;https://example.org\x1b\\link\r\nrow\x1b]8;;\x1b\\\r\na\r\nb\r\nc\r\nd\r\ne\r\nf\r\ncafé\r\ng\nstair\r\nh\r\n\x1b[?6h\x1b[4;1Horigin\r\ni\r\nj\r\nk\r\n\x1b[?6l\x1b[1;4r\x1b[4;1Htop\r\nzero\r\nregion\r\nrows\r\nmore\r\n\x1b[r\x1b[8;1Hfull\r\nscreen\r\nlines\r\nscroll\r\nup\r\nnow\r\n1\r\n2\r\n3\r\n4\r\n5\r\n6\r\n7\r\n8\r\n9\r\n\x1b[?1049h\x1b[3;6r\x1b[6;1Halt\r\nx\r\ny\r\nz\r\nw\r\n\x1b[r\x1b[8;1Halt\r\nfull\r\nscreen\r\nrows\r\nscroll\r\nby\r\nbatch\r\n\x1b[?1049l\x1b[?7lnowrap\r\n\x1b[?7h\x1b[20h\nnl\nmode\n\x1b[20l\x1b(0q\r\nq\r\n\x1b(B\x1b[4hins\r\nert\r\n\x1b[4ldone"
+    for cols: 8..cast(s32)17 {
+        for chunk: 1..cast(s32)67 {
+            if !Check(region, chunk, cols, 8, false) || !Check(region, chunk, cols, 5, false) ||
+                !Check(region, cast(s32)region.count, cols, 8, false) {
+                print("Terminal scroll region parity failed at columns %, chunk %\n", cols, chunk)
+                return 1
+            }
+        }
+    }
+    print("Terminal chunks match byte parsing across Unicode, wrapping, modes, cell styles and scroll regions\n")
     return 0
 }

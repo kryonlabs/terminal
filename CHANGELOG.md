@@ -5,6 +5,8 @@
 - An idle window uses almost no CPU instead of redrawing constantly.
 - Output appears faster and large floods scroll much faster, stay interruptible
   with Ctrl+C, and show new CJK text without stalling.
+- Output inside a scroll region, such as below a fixed status line, scrolls
+  almost twice as fast.
 - `--geometry` opens a window with exactly the requested columns and rows.
 - Ctrl+C and other Control keys and shortcuts such as Ctrl+Shift+T follow the active keyboard layout, including inside tmux, and a very quick press is no longer lost.
 - Keep Tab completion and subsequent shell input in the terminal instead of moving focus to its controls.
