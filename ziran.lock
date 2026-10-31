@@ -2,27 +2,25 @@
   "format": 1,
   "packages": [
     {
-      "commit": "2efbb4b0b16cacd856f12ef698a32d1481c80d38",
-      "dependencies": {"raylib": "pcc7aa76725f2fb2f"},
-      "dependency_refs": {"raylib": "fafa2cea97d0cb379d832086ba45a989fa6f9c8e"},
-      "id": "p36ba03e4a6866e25",
-      "name": "kryon",
-      "ref": "master",
-      "url": "https://github.com/kryonlabs/kryon.git"
-    },
-    {
       "commit": "fafa2cea97d0cb379d832086ba45a989fa6f9c8e",
       "dependencies": {},
-      "id": "pcc7aa76725f2fb2f",
+      "id": "p5a77c9c35110e925",
       "name": "raylib",
       "ref": "fafa2cea97d0cb379d832086ba45a989fa6f9c8e",
       "source": true,
       "url": "https://github.com/raysan5/raylib.git"
+    },
+    {
+      "commit": "f56950c17c4e4e8007bc6e235fec3f418bb359ef",
+      "dependencies": {"raylib": "p5a77c9c35110e925"},
+      "id": "p5bcbdc2c5a53b712",
+      "name": "kryon",
+      "ref": "master",
+      "url": "https://github.com/kryonlabs/kryon.git"
     }
   ],
   "root": {
-    "dependencies": {"kryon": "p36ba03e4a6866e25"},
-    "dependency_refs": {"kryon": "master"},
+    "dependencies": {"kryon": "p5bcbdc2c5a53b712"},
     "name": "terminal"
   },
   "toolchain": {
