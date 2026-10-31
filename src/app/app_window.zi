@@ -63,13 +63,15 @@ ByteView :: (value: string) -> []u8 {
 Now :: () -> float64 {
     return cast(float64)Clock.MonotonicMilliseconds() / 1000.0
 }
+GeometryPaddingWidth :: 20;
+GeometryPaddingHeight :: 78;
 Width :: (launch: *Launch.LaunchOptions) -> s32 {
-    if launch != null && launch.geometry_cols > 0 { return launch.geometry_cols * 10 + 20 }
+    if launch != null && launch.geometry_cols > 0 { return launch.geometry_cols * 10 + GeometryPaddingWidth }
     return 980
 }
 Height :: (launch: *Launch.LaunchOptions) -> s32 {
     if launch != null && launch.drop_down { return 420 }
-    if launch != null && launch.geometry_rows > 0 { return launch.geometry_rows * 20 + 78 }
+    if launch != null && launch.geometry_rows > 0 { return launch.geometry_rows * 20 + GeometryPaddingHeight }
     return 660
 }
 IdleRate :: () -> s32 {
@@ -126,6 +128,13 @@ Open :: (launch: *Launch.LaunchOptions) -> bool {
     }
     return true
 }
+// The window opens before its font exists. Now that a cell's size is known,
+// make the requested grid fit exactly.
+FitGeometry :: (launch: *Launch.LaunchOptions, size: Geometry.Vector2) {
+    if launch == null || launch.drop_down || launch.fullscreen || launch.maximize ||
+        launch.geometry_cols <= 0 || launch.geometry_rows <= 0 || size.x <= 0.0 || size.y <= 0.0 { return }
+    SetWindowSize(cast(s32)size.x, cast(s32)size.y)
+}
 Close :: () {
     ShowCursor(); Runtime.CloseRaylib()
 }
@@ -146,6 +155,10 @@ LoadFont :: (config: *Profile.TerminalPaneProfileSettings) -> bool {
 }
 Poll :: () -> bool {
     return Runtime.PollRaylib()
+}
+// Sleeps without drawing until a shell writes or window input arrives.
+Wait :: (descriptors: []s32, seconds: float64) -> s32 {
+    return Runtime.RaylibWaitForActivity(descriptors, cast(s32)(seconds * 1000.0) + 1)
 }
 Bounds :: () -> Geometry.Rectangle {
     return Runtime.RaylibViewport()

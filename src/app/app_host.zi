@@ -5,6 +5,8 @@ State :: #import "app_state";
 Launch :: #import "app_launch_options";
 Config :: #import "app_config";
 Tabs :: #import "app_sessions";
+Pane :: #import "terminal_pane_widget";
+Chrome :: #import "app_chrome";
 Records :: #import "app_session";
 Profile :: #import "app_profile";
 Palette :: #import "app_palette";
@@ -63,6 +65,8 @@ Host :: struct {
     owns_session: bool
     burst_ms: s32
     fast_poll_until: float64
+    // True while something on screen follows the device or time on its own.
+    busy: bool
 }
 DeviceFrame :: struct {
     now: float64
@@ -164,6 +168,25 @@ Poll :: (host: *Host, now: float64) -> PollResult {
     return result
 }
 
+// The window that holds the requested grid at the current font and chrome.
+GridWindow :: (host: *Host, bounds: Rectangle) -> Vector2 {
+    app := host.app
+    content := Pane.TerminalPaneContentBounds(bounds, Chrome.Height(app), 0, app.scale)
+    measured := Pane.MeasureTerminalPaneContent(content, app.config.font_size, app.scale)
+    return .{bounds.width - measured.content.width + cast(float32)(app.launch.geometry_cols * measured.cell_width),
+        bounds.height - measured.content.height + cast(float32)(app.launch.geometry_rows * measured.line_height)}
+}
+// Every open shell, for waiting on its next output without drawing.
+Descriptors :: (host: *Host, descriptors: []s32) -> s32 {
+    count: s32
+    if host == null || host.app == null { return 0 }
+    for index: 0..host.app.session_count - 1 {
+        if cast(s64)count < descriptors.count && host.app.sessions[index].terminal.fd >= 0 {
+            descriptors[count] = host.app.sessions[index].terminal.fd; count += 1
+        }
+    }
+    return count
+}
 // The shell owns physical keys while no Terminal chrome is active. Reserve
 // them before Kryon's retained Tab/activation routing runs, then restore them
 // for Draw. Menus and dialogs retain normal widget keyboard navigation.
@@ -219,6 +242,8 @@ Draw :: (host: *Host, frame: Frames.Session, bounds: Rectangle,
         input.middle.down || input.right.down || input.keyboard.mods != 0 {
         host.fast_poll_until = device.now + 0.25
     }
+    host.busy = Input.ModalActive(app) || input.left.down || input.middle.down || input.right.down ||
+        app.bell_until > device.now
     result.title_changed = UpdateTitle(app)
     result.quit = app.quit_requested
     return result

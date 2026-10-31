@@ -740,6 +740,7 @@ cols: s32, rows: s32) -> s32 {
     if terminal == null { return 0 }
     cols = terminal_clamp_int(cols, 8, MAX_COLS)
     rows = terminal_clamp_int(rows, 4, MAX_ROWS)
+    terminal_main_screen_rewind(terminal)
     old_main: *Cell = terminal.main_cells
     old_alt: *Cell = terminal.alt_cells
     old_scrollback: *Cell = terminal.scrollback
@@ -762,11 +763,11 @@ cols: s32, rows: s32) -> s32 {
     old_scrollback_count > 0 && old_scrollback_capacity > 0 then 1 else 0)
 
     terminal.main_cells = cast(*Cell)calloc(
-    cast(usize)(cols * rows), size_of(Cell))
+    cast(usize)(cols * rows * 2), size_of(Cell))
     terminal.alt_cells = cast(*Cell)calloc(
     cast(usize)(cols * rows), size_of(Cell))
     terminal.main_wrapped = cast(*u8)calloc(
-    cast(usize)rows, 1)
+    cast(usize)(rows * 2), 1)
     terminal.alt_wrapped = cast(*u8)calloc(
     cast(usize)rows, 1)
     terminal.tab_stops = cast(*u8)calloc(
@@ -818,6 +819,10 @@ cols: s32, rows: s32) -> s32 {
         terminal.rows = old_rows
         return 0
     }
+    terminal.main_cells_start = terminal.main_cells
+    terminal.main_wrapped_start = terminal.main_wrapped
+    terminal.main_spare_rows = rows
+    terminal.main_scrolled_rows = 0
     terminal_clear_cell_block(terminal, terminal.main_cells)
     terminal_clear_cell_block(terminal, terminal.alt_cells)
 
@@ -900,6 +905,28 @@ cols: s32, rows: s32) -> s32 {
     return 1
 }
 
+// Puts the main screen back at the start of its block, where it can be freed.
+terminal_main_screen_rewind :: (terminal: *Terminal) {
+    if terminal == null || terminal.main_scrolled_rows == 0 { return }
+    memmove(cast(*void)terminal.main_cells_start, cast(*void)terminal.main_cells,
+        cast(usize)(terminal.rows * terminal.cols) * size_of(Cell))
+    memmove(cast(*void)terminal.main_wrapped_start, cast(*void)terminal.main_wrapped, cast(usize)terminal.rows)
+    terminal.main_cells = terminal.main_cells_start
+    terminal.main_wrapped = terminal.main_wrapped_start
+    terminal.main_scrolled_rows = 0
+}
+
+// A flood scrolls the whole screen once per line. Moving the window costs
+// nothing; copying the screen back happens once per screenful of spare rows.
+terminal_main_screen_slide :: (terminal: *Terminal, count: s32) -> bool {
+    if terminal.alternate_screen != 0 || count > terminal.main_spare_rows { return false }
+    if terminal.main_scrolled_rows + count > terminal.main_spare_rows { terminal_main_screen_rewind(terminal) }
+    terminal.main_cells = *terminal.main_cells[count * terminal.cols]
+    terminal.main_wrapped = *terminal.main_wrapped[count]
+    terminal.main_scrolled_rows += count
+    return true
+}
+
 #scope_export
 #program_export
 terminal_scroll_up :: (terminal: *Terminal, top: s32,
@@ -921,7 +948,9 @@ bottom: s32, count: s32) {
         i += 1
     }
     terminal_sixel_shift(terminal, top, bottom, -count)
-    if rows > count {
+    if rows == terminal.rows && terminal_main_screen_slide(terminal, count) {
+        // The rows that scrolled away are history; the window now holds the rest.
+    } else if rows > count {
         memmove(cast(*void)(*cells[top * terminal.cols]), cast(*void)(*cells[(top + count) * terminal.cols]), cast(usize)(rows - count) * cast(usize)terminal.cols * size_of(Cell))
         if wrapped != null {
             memmove(cast(*void)(*wrapped[top]), cast(*void)(*wrapped[top + count]), cast(usize)(rows - count))

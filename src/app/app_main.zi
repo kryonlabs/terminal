@@ -1,6 +1,8 @@
 // Both OS entrypoints run the canonical Ziran Terminal host and frame.
 #scope_module
 Host :: #import "app_host";
+Runtime :: #import "kryon/Raylib";
+View :: #import "app_terminal_view";
 Window :: #import "app_window";
 Launch :: #import "app_launch_options";
 Frames :: #import "kryon/session";
@@ -18,6 +20,11 @@ Error :: (message: string, status: s32 = 1) -> s32 {
     Files.Write(file, Window.ByteView("\n"))
     return status
 }
+// Frames drawn after the last event, for chrome that follows it by a frame.
+SettleSeconds :: 0.05;
+// Clipboard, title and theme changes still arrive while a window sleeps.
+HostPollSeconds :: 0.1;
+FloodPaintSeconds :: 0.016;
 Run :: (arguments: []string) -> s32 {
     host: Host.Host
     defer Host.Close(*host)
@@ -39,17 +46,44 @@ Run :: (arguments: []string) -> s32 {
     idle := Window.IdleRate(); active := Window.ActiveRate(idle)
     host.burst_ms = Window.BurstMilliseconds()
     start := Window.Now()
+    View.prepare_glyphs = Runtime.RaylibPrepareGlyphs
     if !Host.Start(*host, Window.Bounds(), start) { return Error("Terminal: could not start Terminal") }
+    Window.FitGeometry(*host.app.launch, Host.GridWindow(*host, Window.Bounds()))
     session := Frames.SessionOpen()
     if !Frames.SessionValid(session) { return Error("Terminal: could not open a UI session") }
     defer Frame.CloseSession(session)
     Window.Title(Host.Title(*host))
     capture := Window.CaptureRequested()
+    // Nothing changes between events, so an idle window sleeps instead of
+    // drawing. Blinking and timed chrome step on the half second.
+    settle_until: float64; next_tick: float64; painted: float64; waits := !capture
+    input_frames: s32
+    shells: [64]s32
     while Window.Poll() {
         now := Window.Now()
         polled := Host.Poll(*host, now)
         if polled.title_changed { Window.Title(Host.Title(*host)) }
         if polled.quit { break }
+        if polled.bytes > 0 {
+            settle_until = now + SettleSeconds
+            // More output is likely on its way: read it instead of painting
+            // twice in one display frame. The first byte after a pause paints now.
+            if now - painted < FloodPaintSeconds { continue }
+        }
+        if waits && !host.busy && input_frames == 0 && now >= settle_until && now < next_tick {
+            remaining := next_tick - now
+            if remaining > HostPollSeconds { remaining = HostPollSeconds }
+            woke := Window.Wait(shells[0:Host.Descriptors(*host, shells[:])], remaining)
+            if woke == Runtime.RaylibActivityUnsupported { waits = false }
+            else {
+                // A frame reads input at its end and uses it in the next.
+                if woke == Runtime.RaylibActivityInput { input_frames = 2 }
+                continue
+            }
+        }
+        if now >= next_tick { next_tick = cast(float64)(cast(s64)(now * 2.0) + 1) / 2.0 }
+        if input_frames > 0 { input_frames -= 1 }
+        painted = now
         Window.Begin()
         bounds := Window.Bounds()
         down: [512]s32
@@ -74,6 +108,7 @@ Run :: (arguments: []string) -> s32 {
             return Error("Terminal: could not save the window capture")
         }
         if result.quit { break }
+        if result.input.wrote > 0 { settle_until = now + SettleSeconds }
         Window.Rate(ifx now < host.fast_poll_until then active else idle)
     }
     return 0

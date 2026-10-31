@@ -88,12 +88,15 @@ def main():
         env["SDL_VIDEODRIVER"] = "x11"
         capture = work / "terminal.png"
         env["KRYON_CAPTURE_PATH"] = str(capture)
-        result = run([binary, "--shell", str(shell), "--command", "printf 'Ziran Terminal\\n'",
+        size = work / "size"
+        result = run([binary, "--shell", str(shell), "--command", "printf 'Ziran Terminal\\n'; stty size > " + shlex.quote(str(size)),
                       "--hold", "--geometry", "40x12"], env)
         assert capture.is_file(), result.stderr
         png = capture.read_bytes()
         assert png.startswith(b"\x89PNG\r\n\x1a\n")
-        assert struct.unpack(">II", png[16:24]) == (420, 318)
+        # The window fits the requested grid exactly at the font's cell size.
+        assert struct.unpack(">I", png[16:20])[0] % 40 == 0
+        assert size.read_text().split() == ["12", "40"]
         assert len(png) > 1000, "The graphical frame is empty"
         env.pop("KRYON_CAPTURE_PATH")
 

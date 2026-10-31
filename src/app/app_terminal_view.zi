@@ -18,10 +18,17 @@ Dialog :: #import "app_dialog";
 Engine :: #import "terminal";
 Pane :: #import "terminal_pane_widget";
 Render :: #import "terminal_pane_render";
+PaneText :: #import "terminal_pane_text";
 Selection :: #import "terminal_pane_selection";
 Colors :: #import "terminal_pane_profile_colors";
 Types :: #import "terminal_pane_profile_types";
 Text :: #import "std/text_buffer";
+
+#scope_export
+// The window's text preparation; absent where nothing is on screen.
+GlyphPreparer :: #type (string) -> void;
+prepare_glyphs: GlyphPreparer;
+#scope_module
 
 Clamp :: (value: s32, low: s32, high: s32) -> s32 {
     if value < low { return low }
@@ -105,9 +112,32 @@ DrawTabs :: (frame: Frames.Session, app: *State.State, bounds: Rectangle,
     }
 }
 
+// Hands the renderer a frame's non-ASCII characters together, so a screen of
+// new glyphs rebakes each font once instead of once per character.
+PrepareCells :: (app: *State.State, terminal: *Engine.Terminal) {
+    if prepare_glyphs == null { return }
+    bytes: [4096]u8
+    length: s32
+    for row: 0..app.visible_rows - 1 {
+        visible_row := app.first_visible_row + row
+        if visible_row >= Engine.terminal_visible_line_count(terminal) { break }
+        for col: 0..terminal.cols - 1 {
+            cell := Engine.terminal_visible_cell(terminal, col, visible_row)
+            if cell == null || cell.codepoint < cast(u32)0x80 { continue }
+            if length > 4080 { prepare_glyphs(TextView(bytes[0:length])); length = 0 }
+            unused PaneText.AppendTerminalPaneUTF8Codepoint(*bytes[0], 4096, *length, cell.codepoint)
+            if cell.combining != cast(u32)0 {
+                unused PaneText.AppendTerminalPaneUTF8Codepoint(*bytes[0], 4096, *length, cell.combining)
+            }
+        }
+    }
+    if length > 0 { prepare_glyphs(TextView(bytes[0:length])) }
+}
+
 DrawCells :: (frame: Frames.Session, node: s32, app: *State.State,
     terminal: *Engine.Terminal, theme: Colors.TerminalPaneColors,
     colors: Colors.TerminalPaneViewColors, blink_on: bool) {
+    PrepareCells(app, terminal)
     for row: 0..app.visible_rows - 1 {
         visible_row := app.first_visible_row + row
         if visible_row >= Engine.terminal_visible_line_count(terminal) { break }

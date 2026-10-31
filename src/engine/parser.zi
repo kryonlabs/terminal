@@ -86,6 +86,8 @@ put_codepoint :: (terminal: *Terminal, codepoint: u32) {
     if terminal.insert_mode != 0 {
         terminal_insert_blank_chars(terminal, width)
     }
+    // Wrapping can scroll, and scrolling moves the main screen.
+    cells = terminal_screen_cells(terminal)
     cell: Cell
     cell.codepoint = (ifx codepoint >= 32 then codepoint else #char"?")
     cell.combining = 0
@@ -152,6 +154,7 @@ repeat_previous_graphic :: (terminal: *Terminal, count: s32) {
         if source.combining != 0 && row >= 0 &&
         row < terminal.rows && col >= 0 &&
         col < terminal.cols {
+            cells = terminal_screen_cells(terminal)
             cells[row * terminal.cols + col].combining =
             source.combining
         }

@@ -178,6 +178,12 @@ Terminal :: struct {
     utf8_codepoint: s32
     utf8_remaining: s32
     main_cells: *Cell
+    // The main screen slides over spare rows when all of it scrolls. These
+    // stay zero for a block without spare rows, which scrolls by copying.
+    main_cells_start: *Cell
+    main_wrapped_start: *u8
+    main_spare_rows: s32
+    main_scrolled_rows: s32
     alt_cells: *Cell
     scrollback: *Cell
     main_wrapped: *u8

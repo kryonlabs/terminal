@@ -54,7 +54,11 @@ terminal_poll_bytes :: (terminal: *Terminal) -> s32 {
     bytes: s32 = 0
 
     if terminal == null || terminal.fd < 0 { return 0 }
-    while true {
+    // A bound on one call lets the frame loop draw and read input during a
+    // flood, which would otherwise keep this loop busy until the writer stops.
+    reads: s32
+    while reads < 64 {
+        reads += 1
         buffer: [4096]u8
         got: s32 = Transport.TerminalPtyRead(terminal.fd, cast(*void)(*buffer[0]),
         cast(s32)size_of(type_of(buffer)))
@@ -145,6 +149,7 @@ terminal_close :: (terminal: *Terminal) {
             Transport.TerminalPtyWaitExit(terminal.pid, 500)
         }
     }
+    terminal_main_screen_rewind(terminal)
     free(cast(*void)(terminal.main_cells))
     free(cast(*void)(terminal.alt_cells))
     free(cast(*void)(terminal.scrollback))

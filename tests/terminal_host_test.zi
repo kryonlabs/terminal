@@ -320,7 +320,7 @@ CheckBashCompletion :: () -> bool {
     // Force a no-match bell, then prove that Backspace still reaches Readline.
     Input.TypedCodepointSend(frame, #char "z"); unused Draw(*host, frame)
     Input.KeyboardSend(frame, Input.KeyTab); unused Draw(*host, frame)
-    for attempt: 0..9 { unused Host.Poll(*host, 1.0); Pause(10) }
+    for attempt: 0..299 { unused Host.Poll(*host, 1.0); if host.app.bell_until > 1.0 { break }; Pause(10) }
     Input.KeyboardSend(frame, Input.KeyBackspace)
     if host.app.bell_until <= 1.0 { return Failure("Expected Readline completion bell") }
     if Draw(*host, frame).input.wrote != 1 { return Failure("Backspace after completion bell") }

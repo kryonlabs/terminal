@@ -321,3 +321,26 @@ References:
 - GNOME VTE docs: https://gnome.pages.gitlab.gnome.org/vte/gtk4/
 - Alacritty README: https://github.com/alacritty/alacritty/blob/master/README.md
 - WezTerm front-end docs: https://wezterm.org/config/lua/config/front_end.html
+
+## Comparison with other GPU terminals
+
+`python3 benchmarks/compare_gpu_terminals.py --out DIR --terminal-bin PATH`
+runs each terminal 120x40 under a private headless Weston with GL (radeonsi,
+integrated Raphael) through Xwayland. Medians of three runs, 2026-10-31:
+
+| Measure | Terminal | Alacritty | kitty | xterm |
+|---|---:|---:|---:|---:|
+| Startup ms | 163.5 | 180.2 | 339.4 | 52.4 |
+| Idle CPU % | 0.3 | 0.0 | 0.0 | 0.0 |
+| Output to frame, median ms | 1.0 | 2.3 | 5.9 | 1.7 |
+| Output to frame, p95 ms | 1.7 | 2.9 | 6.5 | 2.1 |
+| ASCII MB/s | 180.6 | 122.4 | 44.2 | 81.9 |
+| SGR MB/s | 159.7 | 198.6 | 47.0 | 5.2 |
+| Unicode MB/s | 96.1 | 119.3 | 32.2 | 88.8 |
+| Scroll region MB/s | 89.3 | 145.0 | 46.8 | 87.4 |
+| Alternate redraw MB/s | 215.4 | 188.0 | 45.0 | 24.8 |
+| RSS at start MB | 120.9 | 164.4 | 185.6 | 19.8 |
+| Peak RSS MB | 170.9 | 204.8 | 203.3 | 27.8 |
+
+Latency here is output to rendered frame, not keypress to pixel, and the
+display is headless. Harmony's embedded pane is not part of this comparison.

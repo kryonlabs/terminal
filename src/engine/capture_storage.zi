@@ -12,6 +12,7 @@ history_limit: s32 = SCROLLBACK_LIMIT) -> bool {
     // Page readers reserve only the physical rows they request. Keep the
     // ordinary capture limit by default and reject unrepresentable indices.
     if history_limit <= 0 || cast(s64)history_limit + rows > cast(s64)2147483647 / cols { return false }
+    terminal_main_screen_rewind(terminal)
     reusable := terminal.cols >= cols && terminal.rows >= rows &&
         terminal.main_cells != null && terminal.alt_cells != null &&
         terminal.main_wrapped != null && terminal.alt_wrapped != null &&

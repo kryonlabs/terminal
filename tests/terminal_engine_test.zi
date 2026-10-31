@@ -276,6 +276,30 @@ Boundaries :: () -> s32 {
     Reset(*terminal)
     Feed(*terminal, "\x1b[31;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;31mA")
     if !Line(*terminal, 0, "A") || terminal_cell(*terminal, 0, 0).fg != COLOR_DEFAULT { return 80 }
+    // Scrolling slides the screen over spare rows, so run past several
+    // rewinds, past a partial region scroll and through a resize.
+    Reset(*terminal)
+    for line: 0..49 {
+        digits: [4]u8 = .{cast(u8)(48 + line / 10), cast(u8)(48 + line % 10), 13, 10}
+        terminal_feed(*terminal, cast(*void)(*digits[0]), 4)
+    }
+    if !Line(*terminal, 0, "47") || !Line(*terminal, 1, "48") || !Line(*terminal, 2, "49") || !Line(*terminal, 3, "") { return 81 }
+    if terminal.scrollback_count != 47 { return 82 }
+    Feed(*terminal, "\x1b[1;2r\x1b[1;1H\x1b[M")
+    if !Line(*terminal, 0, "48") || !Line(*terminal, 1, "") || !Line(*terminal, 2, "49") { return 83 }
+    Feed(*terminal, "\x1b[r\x1b[4;1H\r\nN")
+    if !Line(*terminal, 3, "N") || !Line(*terminal, 1, "49") { return 84 }
+    terminal_resize(*terminal, 12, 6)
+    found: bool
+    for row: cast(s32)0..5 { if Line(*terminal, row, "N") { found = true } }
+    if !found { return 85 }
+    Feed(*terminal, "\r\nA\r\nB\r\nC\r\nD\r\nE\r\nF\r\nG\r\nH")
+    if !Line(*terminal, 5, "H") || !Line(*terminal, 4, "G") { return 86 }
+    // A character that wraps onto a scrolled row lands in the moved screen.
+    Reset(*terminal)
+    for line: 0..9 { Feed(*terminal, "abcdefghijkl") }
+    Feed(*terminal, "Z")
+    if terminal_cell(*terminal, 0, terminal.cursor_row).codepoint != 90 { return 87 }
     return 0
 }
 

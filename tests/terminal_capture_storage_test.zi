@@ -14,6 +14,9 @@ SameReset :: (actual: *Terminal, expected: *Terminal) -> bool {
     normalized := actual.*
     normalized.main_cells = expected.main_cells; normalized.alt_cells = expected.alt_cells
     normalized.main_wrapped = expected.main_wrapped; normalized.alt_wrapped = expected.alt_wrapped
+    // A reset screen may reuse storage without the spare rows scrolling slides over.
+    normalized.main_cells_start = expected.main_cells_start; normalized.main_wrapped_start = expected.main_wrapped_start
+    normalized.main_spare_rows = expected.main_spare_rows; normalized.main_scrolled_rows = expected.main_scrolled_rows
     normalized.scrollback = expected.scrollback; normalized.scrollback_wrapped = expected.scrollback_wrapped
     normalized.tab_stops = expected.tab_stops
     normalized.scrollback_capacity = expected.scrollback_capacity
