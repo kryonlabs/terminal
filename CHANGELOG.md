@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Keep saved tabs intact so terminal launches do not exit after restoring
+  temporary shell entries.
 - An idle window uses almost no CPU instead of redrawing constantly.
 - Output appears faster and large floods scroll much faster, stay interruptible
   with Ctrl+C, and show new CJK text without stalling.

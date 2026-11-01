@@ -10,13 +10,19 @@ case "$suite" in
     host) module=terminal_host_test ;;
     *) echo "Unknown Terminal application suite: $suite" >&2; exit 2 ;;
 esac
-unset DISPLAY WAYLAND_DISPLAY XAUTHORITY ENV BASH_ENV
+unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS SESSION_MANAGER ENV BASH_ENV
+export YUE_DESKTOP_RECOVERY=0
 ziran=${ZIRAN:-"$root/scripts/ziran.sh"}
 lock_flags=
 if test ! -f ziran.local.toml; then lock_flags=--locked; fi
 mkdir -p build/ziran
 work=$(mktemp -d "$root/build/ziran/$suite-test.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
+# Persistence fixtures must never read or replace the owner's saved tabs.
+export XDG_CONFIG_HOME="$work/config" XDG_STATE_HOME="$work/state"
+mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME/terminal"
+printf 'active=0\n' > "$work/session.before"
+cp "$work/session.before" "$XDG_STATE_HOME/terminal/session"
 cat > "$work/shell" <<'SHELL'
 #!/bin/sh
 exec /bin/sh -c "$2"
@@ -33,5 +39,6 @@ for form in source saved; do
     "$ziran" build --project $lock_flags --target=c --entry "$entry" \
         --exe -o "$work/$form-c" "$input"
     (cd "$work/$form-c" && TERMINAL_TEST_SHELL="$work/shell" timeout --kill-after=2s 15s "./$module")
+    cmp "$work/session.before" "$XDG_STATE_HOME/terminal/session"
 done
 echo "Terminal $suite source and saved IR passed C behavior checks"

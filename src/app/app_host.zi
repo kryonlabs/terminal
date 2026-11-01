@@ -258,7 +258,7 @@ Close :: (host: *Host, session_path: string = "") -> bool {
     if host == null { return true }
     saved: bool = true
     if host.app != null {
-        if host.started && host.owns_session && host.app.session_count > 0 {
+        if host.persist && host.started && host.owns_session && host.app.session_count > 0 {
             saved = Tabs.Save(host.app, session_path)
         }
         State.Dispose(host.app)
