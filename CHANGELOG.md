@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Alt-click opens visible web URLs and OSC 8 hyperlinks, including wrapped links
+  and scrollback; Ctrl-click remains available, including in full-screen programs.
+
 - Start new terminal windows in the home folder instead of restoring the last
   visited folder; explicit working-directory options still take priority.
 - Keep saved tabs intact so terminal launches do not exit after restoring

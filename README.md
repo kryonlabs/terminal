@@ -99,6 +99,10 @@ path (escaping quotes inside), adds a separating space, and refuses paths with
 control characters such as a newline.
 Internal parser modules remain private. Applications should use the same
 locked Kryon dependency as Terminal so their session and geometry types are shared.
+Hosts that own pointer gestures can call `TerminalPaneLinkAt(terminal,
+viewport, col, row, storage)` from `terminal/terminal_pane_widget`; pass a null
+viewport for the engine's native history/screen grid. The returned target
+borrows `storage`; the host opens it with its platform URL handler.
 Local application overrides may name the canonical `kryonlabs/terminal` checkout
 in an ignored `ziran.local.toml`; no source copies or sibling module paths are
 needed in application code.
@@ -246,7 +250,8 @@ sequences so copied text cannot break out of the paste bracket.
 OSC 52 clipboard queries are synced from the host clipboard before terminal
 output is parsed, and OSC 52 clipboard writes update the host clipboard.
 OSC 8 terminal hyperlinks are underlined with the theme link color and open
-with `Ctrl` + left click.
+with `Alt` + left click or `Ctrl` + left click. Visible HTTP and HTTPS URLs
+also open with either modifier, including links wrapped across terminal rows.
 
 Terminal graphics:
 

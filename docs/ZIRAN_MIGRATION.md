@@ -237,6 +237,11 @@ It checks actual bytes through controlled child processes, Unicode,
 held/repeated keys, selection, scroll limits, current Kryon input capture,
 dialog ownership and pointer visibility decisions. Hosts supply middle-button
 edges, time and focus and apply the returned hyperlink/cursor decisions.
+`terminal_pane_links.zi` resolves OSC 8 targets and visible HTTP(S) URLs for
+both the application router and `TerminalPaneLinkAt`. Embedded hosts pass
+an optional reflowed viewport and caller-owned storage to that pane API.
+Alt-click and the existing Ctrl-click claim both mouse edges before child
+mouse reporting; wrapped links and history use the same cell lookup.
 Complete hosts must also distinguish fresh and repeated device keys; the
 protocol fixture verifies that distinction at the explicit frame boundary.
 These module checks do not certify the remaining graphical host or live OS

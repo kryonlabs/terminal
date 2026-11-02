@@ -57,6 +57,8 @@ State :: struct {
     mouse_report_row: s32
     mouse_report_x: s32
     mouse_report_y: s32
+    link_text: [8192]u8
+    link_pointer_claimed: bool
     mouse_report_button: s32
     selection_click_time: float64
     selection_click_row: s32

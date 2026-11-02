@@ -8,6 +8,7 @@ Fonts :: #import "kryon/font_metrics";
 using Engine :: #import "terminal";
 Keys :: #import "terminal_pane_keys";
 PaneMouse :: #import "terminal_pane_mouse";
+Links :: #import "terminal_pane_links";
 Keyboard :: #import "terminal_keyboard";
 Metrics :: #import "terminal_pane_metrics";
 using Colors :: #import "terminal_pane_profile_colors";
@@ -411,4 +412,10 @@ DrawTerminalPane :: (session: Sessions.Session, pane: TerminalPane) -> TerminalP
         }
     }
     return result
+}
+
+// Shared with complete application hosts and hosts that own pointer gestures.
+TerminalPaneLinkAt :: (terminal: *Engine.Terminal, view: *Engine.TerminalViewport,
+    col: s32, row: s32, out: []u8) -> string {
+    return Links.LinkAt(terminal, view, col, row, out)
 }

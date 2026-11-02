@@ -351,10 +351,43 @@ TestPreciseScroll :: (session: Sessions.Session) -> bool {
     if !found { print("Fractional scroll: original % at %, step %, paints %\n",original_code,original_y,measured.line_height,Paint.PendingPaintCount(session)) }
     return found && Finish(session)
 }
+#scope_file
+TestLinks :: () -> bool {
+    terminal: Engine.Terminal; Engine.terminal_init(*terminal)
+    defer Engine.terminal_close(*terminal)
+    Engine.terminal_resize(*terminal, 20, 4)
+    url := "https://example.org/a(b)?next=https://example.net#part"
+    Feed(*terminal, "Open ("); Feed(*terminal, url); Feed(*terminal, "). tail")
+    bytes: [128]u8
+    for i: 0..cast(s32)url.count - 1 {
+        at := 6 + i
+        if Pane.TerminalPaneLinkAt(*terminal, null, at % 20, at / 20, bytes[:]) != url { print("wrapped link cell %\n", i); return false }
+    }
+    if Pane.TerminalPaneLinkAt(*terminal, null, 5, 0, bytes[:]) != "" ||
+        Pane.TerminalPaneLinkAt(*terminal, null, (6 + cast(s32)url.count) % 20, (6 + cast(s32)url.count) / 20, bytes[:]) != "" { return false }
+    tiny: [8]u8
+    if Pane.TerminalPaneLinkAt(*terminal, null, 10, 0, tiny[:]) != "" { return false }
+    // The same physical cells become history, then are reflowed by an embedder.
+    Feed(*terminal, "\r\nnext\r\nnext\r\nnext\r\nnext")
+    if Pane.TerminalPaneLinkAt(*terminal, null, 10, 0, bytes[:]) != url { return false }
+    view: Engine.TerminalViewport
+    defer Engine.terminal_viewport_close(*view)
+    if !Engine.terminal_viewport_build(*view, *terminal, 12, 4) { return false }
+    if Pane.TerminalPaneLinkAt(*terminal, *view, 3, 1, bytes[:]) != url { return false }
+    Feed(*terminal, "\x1b[2J\x1b[H\x1b]8;;https://example.org/hidden\x07label\x1b]8;;\x07")
+    row := Engine.terminal_visible_line_count(*terminal) - terminal.rows
+    if Pane.TerminalPaneLinkAt(*terminal, null, 2, row, bytes[:]) != "https://example.org/hidden" { return false }
+    if Pane.TerminalPaneLinkAt(*terminal, null, -1, row, bytes[:]) != "" { return false }
+    Feed(*terminal, "\x1b[2J\x1b[Hhttps://\r\nexample.org")
+    if Pane.TerminalPaneLinkAt(*terminal, null, 2, row, bytes[:]) != "" { return false }
+    return true
+}
+
 #scope_export
 #program_export
 main :: () -> s32 {
     session := Sessions.SessionOpen()
+    if !TestLinks() { print("Terminal shared link resolution failed\n"); return 22 }
     if !TestGrid(session) { return 1 }
     if !TestMirror(session) { return 17 }
     if !TestFixedPitch(session) { return 18 }

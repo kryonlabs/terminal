@@ -1,0 +1,82 @@
+#scope_module
+Engine :: #import "terminal";
+Text :: #import "std/byte_text_linux";
+
+CellAt :: (terminal: *Engine.Terminal, view: *Engine.TerminalViewport, col: s32, row: s32) -> *Engine.Cell {
+    if view != null { return Engine.terminal_viewport_cell(view, col, row) }
+    return Engine.terminal_visible_cell(terminal, col, row)
+}
+Wrapped :: (terminal: *Engine.Terminal, view: *Engine.TerminalViewport, row: s32) -> bool {
+    if view != null { return Engine.terminal_viewport_line_wrapped(view, row) != 0 }
+    return Engine.terminal_visible_line_wrapped(terminal, row) != 0
+}
+ByteAt :: (terminal: *Engine.Terminal, view: *Engine.TerminalViewport, col: s32, row: s32) -> u8 {
+    cell := CellAt(terminal, view, col, row)
+    if cell == null || cell.codepoint <= cast(u32)32 || cell.codepoint >= cast(u32)127 { return 32 }
+    return cast(u8)cell.codepoint
+}
+Prefix :: (value: string, at: s32, prefix: string) -> bool {
+    return at >= 0 && cast(s64)at + prefix.count <= value.count && value[at:at + cast(s32)prefix.count] == prefix
+}
+
+#scope_export
+// Resolves a cell in history/screen or a reflowed viewport. Returned text borrows
+// the caller's storage. Never open a truncated target or cross a hard newline.
+LinkAt :: (terminal: *Engine.Terminal, view: *Engine.TerminalViewport,
+    col: s32, row: s32, out: []u8) -> string {
+    if terminal == null || out.count < 2 { return "" }
+    cols := terminal.cols; lines := Engine.terminal_visible_line_count(terminal)
+    if view != null { cols = view.cols; lines = Engine.terminal_viewport_line_count(view) }
+    if col < 0 || col >= cols || row < 0 || row >= lines { return "" }
+    cell := CellAt(terminal, view, col, row)
+    if cell == null { return "" }
+    if cell.hyperlink > 0 {
+        target := Engine.terminal_hyperlink(terminal, cell.hyperlink)
+        if target != null {
+            value := Text.TextFromCString(target)
+            if value.count >= out.count { return "" }
+            for i: cast(s64)0..value.count - 1 { out[i] = value[i] }
+            return Text.TextFromBytes(out[:value.count])
+        }
+    }
+    if ByteAt(terminal, view, col, row) == cast(u8)32 { return "" }
+    start_col := col; start_row := row; distance: s64
+    while distance < out.count {
+        c := start_col - 1; r := start_row
+        if c < 0 {
+            if r == 0 || !Wrapped(terminal, view, r - 1) { break }
+            r -= 1; c = cols - 1
+        }
+        if ByteAt(terminal, view, c, r) == cast(u8)32 { break }
+        start_col = c; start_row = r; distance += 1
+    }
+    if distance >= out.count { return "" }
+    size: s32; at: s32 = -1; c := start_col; r := start_row
+    while r < lines {
+        byte := ByteAt(terminal, view, c, r)
+        if byte == cast(u8)32 { break }
+        if cast(s64)size + 1 >= out.count { return "" }
+        if c == col && r == row { at = size }
+        out[size] = byte; size += 1; c += 1
+        if c >= cols {
+            if !Wrapped(terminal, view, r) { break }
+            c = 0; r += 1
+        }
+    }
+    if at < 0 { return "" }
+    value := Text.TextFromBytes(out[:size]); begin: s32 = -1
+    for i: 0..at { if Prefix(value, i, "https://") || Prefix(value, i, "http://") { begin = i; break } }
+    if begin < 0 { return "" }
+    end := begin; depth: s32
+    while end < size && value[end] != cast(u8)62 && value[end] != cast(u8)34 &&
+        value[end] != cast(u8)39 && value[end] != cast(u8)96 && value[end] != cast(u8)92 &&
+        !Prefix(value, end, "**") && !Prefix(value, end, "__") {
+        if value[end] == cast(u8)40 { depth += 1 }
+        if value[end] == cast(u8)41 { if depth == 0 { break }; depth -= 1 }
+        end += 1
+    }
+    while end > begin && (value[end - 1] == cast(u8)46 || value[end - 1] == cast(u8)44 || value[end - 1] == cast(u8)59) { end -= 1 }
+    prefix_size := ifx Prefix(value, begin, "https://") then 8 else 7
+    if at >= end || end <= begin + prefix_size { return "" }
+    return value[begin:end]
+}

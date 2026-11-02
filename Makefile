@@ -33,6 +33,12 @@ standalone-window-test: $(APP)
 		LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
 		env TERMINAL_PRIVATE_XVFB=1 python3 tests/standalone_window_test.py "$(APP)"
 
+.PHONY: link-window-test
+link-window-test: $(APP)
+	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
+		YUE_DESKTOP_RECOVERY=0 LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
+		env TERMINAL_PRIVATE_XVFB=1 python3 tests/link_window_test.py "$(APP)"
+
 .PHONY: independent-window-test
 independent-window-test: $(APP)
 	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
@@ -161,7 +167,7 @@ pane-ziran-test: terminal-test terminal-capture-test terminal-capture-storage-te
 package-test:
 	ZIRAN="$(ZIRAN)" sh tests/package_test.sh
 
-test: package-test pane-ziran-test standalone-test independent-window-test install-test parser-replay-test reflow-cursor-test
+test: package-test pane-ziran-test link-window-test standalone-test independent-window-test install-test parser-replay-test reflow-cursor-test
 
 .PHONY: reflow-cursor-test
 reflow-cursor-test:

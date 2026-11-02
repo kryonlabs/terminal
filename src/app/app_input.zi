@@ -16,6 +16,7 @@ UI :: #import "kryon/tree_input";
 Frames :: #import "kryon/session";
 Geometry :: #import "kryon/geometry";
 Text :: #import "std/byte_text_linux";
+Links :: #import "terminal_pane_links";
 
 #scope_export
 ButtonFrame :: struct { down: bool; pressed: bool; released: bool; }
@@ -258,8 +259,37 @@ Handle :: (app: *State.State, frame: Frame, persist: bool = true) -> Result {
     }
     session := Sessions.Active(app)
     if session == null || !frame.focused || ModalActive(app) {
+        app.link_pointer_claimed = false
         app.keyboard_state = Keys.TerminalPaneInputState.{}
         return result
+    }
+    if app.link_pointer_claimed && !frame.left.pressed {
+        if frame.left.released || !frame.left.down { app.link_pointer_claimed = false }
+        result.wrote = PumpKeyboard(app, frame.keyboard, persist)
+        return result
+    }
+    // Link gestures take precedence over child mouse reporting. Alt-click
+    // must work in full-screen applications too, without sending half a click.
+    if Inside(app, frame) && frame.left.pressed &&
+        (frame.keyboard.mods & (Keys.TERMINAL_PANE_MOD_ALT | Keys.TERMINAL_PANE_MOD_CTRL)) != 0 {
+        col := cast(s32)((frame.x - app.viewport.x) / cast(float32)app.cell_w)
+        viewport_row := cast(s32)((frame.y - app.viewport.y) / cast(float32)app.line_h)
+        if viewport_row < app.visible_rows {
+            link_bytes: [8192]u8
+            target := Links.LinkAt(*session.terminal, null, col, app.first_visible_row + viewport_row, link_bytes[:])
+            // Copy the detected substring into persistent application storage
+            // before returning it across the borrowed frame boundary.
+            if target != "" {
+                Session.CopyText(app.link_text[:], target)
+                result.hyperlink = Text.TextFromCString(*app.link_text[0])
+            }
+        }
+        if result.hyperlink != "" {
+            app.link_pointer_claimed = !frame.left.released
+            app.selection.active = 0; app.selection.dragging = 0
+            app.mouse_report_button = Mouse.TERMINAL_PANE_MOUSE_RELEASE
+            return result
+        }
     }
     if app.selection.active != 0 && Inside(app, frame) &&
         (frame.right.down || frame.right.pressed || frame.right.released) {
@@ -276,21 +306,8 @@ Handle :: (app: *State.State, frame: Frame, persist: bool = true) -> Result {
             if consumed { session.scroll_offset = 0 }
             else { ScrollBy(app, session, WheelScrollDelta(frame.wheel)) }
         }
-        if session.terminal.mouse_mode == 0 && Inside(app, frame) && frame.left.pressed &&
-            (frame.keyboard.mods & Keys.TERMINAL_PANE_MOD_CTRL) != 0 {
-            col := Clamp(cast(s32)((frame.x - app.viewport.x) / cast(float32)app.cell_w), 0, session.terminal.cols - 1)
-            viewport_row := cast(s32)((frame.y - app.viewport.y) / cast(float32)app.line_h)
-            cell: *Engine.Cell
-            if viewport_row < app.visible_rows {
-                cell = Engine.terminal_visible_cell(*session.terminal, col, app.first_visible_row + viewport_row)
-            }
-            if cell != null && cell.hyperlink > 0 { result.hyperlink = Text.TextFromCString(Engine.terminal_hyperlink(*session.terminal, cell.hyperlink)) }
-        }
-        if result.hyperlink != "" { app.selection.active = 0; session.scroll_offset = 0 }
-        else {
-            if session.terminal.mouse_mode == 0 && Inside(app, frame) && frame.middle.pressed { Clipboard.PastePreferred(app, session) }
-            HandleSelection(app, session, frame)
-        }
+        if session.terminal.mouse_mode == 0 && Inside(app, frame) && frame.middle.pressed { Clipboard.PastePreferred(app, session) }
+        HandleSelection(app, session, frame)
         if Inside(app, frame) && frame.right.released {
             app.context_menu_open = true; app.context_menu_x = cast(s32)frame.x; app.context_menu_y = cast(s32)frame.y
         }
