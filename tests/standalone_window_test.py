@@ -11,8 +11,8 @@ import tempfile
 import time
 
 
-def run(arguments, env, expected=0):
-    result = subprocess.run(arguments, env=env, capture_output=True, text=True, timeout=15)
+def run(arguments, env, expected=0, cwd=None):
+    result = subprocess.run(arguments, env=env, cwd=cwd, capture_output=True, text=True, timeout=15)
     assert result.returncode == expected, (arguments, result.returncode, result.stdout, result.stderr)
     return result
 
@@ -98,6 +98,37 @@ def main():
         assert struct.unpack(">I", png[16:20])[0] % 40 == 0
         assert size.read_text().split() == ["12", "40"]
         assert len(png) > 1000, "The graphical frame is empty"
+
+        # A normal launch ignores saved folders, tabs and commands, even when
+        # launched from somewhere else. Explicit directory choices still win.
+        home = work / "home"
+        inherited = work / "launcher"
+        previous = work / "previous"
+        configured = work / "configured"
+        for path in (home, inherited, previous, configured):
+            path.mkdir()
+        startup_shell = work / "startup-shell"
+        startup_cwd = work / "startup.cwd"
+        startup_shell.write_text("#!/bin/sh\npwd >> " + shlex.quote(str(startup_cwd)) + "\nexec sleep 30\n")
+        startup_shell.chmod(0o700)
+        config = work / "config" / "terminal" / "config"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        session = work / "state" / "terminal" / "session"
+        session.parent.mkdir(parents=True, exist_ok=True)
+        startup_env = dict(env, HOME=str(home))
+        for options, profile_directory, expected in (
+                ([], "", home),
+                ([], str(configured), configured),
+                (["--working-directory", str(previous)], str(configured), previous),
+                (["--default-working-directory", str(previous)], "", previous)):
+            config.write_text(f"shell={startup_shell}\nworking_directory={profile_directory}\n")
+            session.write_text(f"active=1\ntab\t{previous}\t/bin/false\tOld tab\n"
+                               f"tab\t{previous}\t/bin/false\tAnother old tab\n")
+            startup_cwd.unlink(missing_ok=True)
+            run([binary, *options], startup_env, cwd=inherited)
+            assert startup_cwd.read_text().splitlines() == [str(expected)], (
+                options, startup_cwd.read_text())
+        config.unlink()
         env.pop("KRYON_CAPTURE_PATH")
 
         output = work / "input.bytes"

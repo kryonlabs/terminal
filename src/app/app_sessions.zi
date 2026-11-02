@@ -13,6 +13,7 @@ Text :: #import "std/byte_text_linux";
 Geometry :: #import "kryon/geometry";
 libc :: #system_library "c";
 DirectoryHost :: (output: *s8, capacity: usize) -> *s8 #foreign libc "getcwd";
+EnvironmentHost :: (name: *s8) -> *s8 #foreign libc "getenv";
 
 Clamp :: (value: s32, minimum: s32, maximum: s32) -> s32 {
     if value < minimum { return minimum }
@@ -23,6 +24,10 @@ InitialCwd :: (app: *State.State, output: []u8) -> string {
     if app.config.working_directory[0] != 0 {
         return Session.CopyText(output, Text.TextFromCString(*app.config.working_directory[0]))
     }
+    key := "HOME"
+    descriptor := cast(*Text.TextDescriptor)(*key)
+    home := Text.TextFromCString(cast(*u8)EnvironmentHost(cast(*s8)descriptor.data))
+    if home != "" { return Session.CopyText(output, home) }
     if output.count <= 0 || DirectoryHost(cast(*s8)(*output[0]), cast(usize)output.count) == null { return "" }
     return Text.TextFromCString(*output[0])
 }

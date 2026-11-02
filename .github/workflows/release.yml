@@ -71,6 +71,7 @@ jobs:
             file \
             fonts-dejavu-core \
             libgl1-mesa-dev \
+            libwebp-dev \
             libsdl2-dev \
             pkg-config \
             ripgrep \
@@ -143,7 +144,7 @@ jobs:
           Priority: optional
           Architecture: amd64
           Maintainer: Waozi <waozi@proton.me>
-          Depends: libc6, libsdl2-2.0-0, libgl1
+          Depends: libc6, libsdl2-2.0-0, libgl1, libwebp7, libwebpdemux2
           Recommends: fonts-dejavu-core
           Description: Kryon terminal emulator
            Terminal is a standalone terminal application using Kryon for windowing,

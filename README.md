@@ -17,7 +17,7 @@ make install
 The application, terminal engine, pane and shared application host are
 maintained in Ziran. `make` generates native C from the current `.zi`
 entrypoint and links Kryon's Raylib backend over SDL2. The build needs a C
-compiler, CMake, pkg-config, SDL2 and OpenGL development files. Raylib's source
+compiler, CMake, pkg-config, SDL2, WebP and OpenGL development files. Raylib's source
 is resolved from the Git-backed package lock. Builds default to one job;
 `TERMINAL_BUILD_JOBS` may select up to four.
 
@@ -194,9 +194,12 @@ working_directory=/home/me/project
 String values saved by Terminal use backslash escapes for tabs, newlines, and
 literal backslashes.
 
-Terminal restores open tabs on startup when no command is configured, including
-the active tab plus each tab's working directory, shell, command, scroll
-position, and manual title override. The restore file lives under
+Terminal starts a fresh shell in your home folder by default. A configured
+`working_directory` or an explicit launch directory overrides that default.
+Previous tabs and their last visited folders are not restored automatically.
+Saved tab metadata remains available to hosts that explicitly restore a session,
+including the active tab, working directories, shells, commands, scroll
+positions, and manual titles. The session file lives under
 `$XDG_STATE_HOME/terminal/session`
 or `~/.local/state/terminal/session`.
 

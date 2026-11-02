@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Start new terminal windows in the home folder instead of restoring the last
+  visited folder; explicit working-directory options still take priority.
 - Keep saved tabs intact so terminal launches do not exit after restoring
   temporary shell entries.
 - An idle window uses almost no CPU instead of redrawing constantly.

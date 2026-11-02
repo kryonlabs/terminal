@@ -61,7 +61,7 @@ Host :: struct {
     started: bool
     embedded: bool
     persist: bool
-    // Only a plain window restores and saves the shared tab session.
+    // Plain windows save tab metadata; restoration requires an explicit path.
     owns_session: bool
     burst_ms: s32
     fast_poll_until: float64
@@ -129,7 +129,7 @@ Start :: (host: *Host, viewport: Rectangle, now: float64 = 0.0,
     if Tabs.OpenLaunchSessions(app) == 0 {
         host.owns_session = !host.embedded && host.persist && app.config.command[0] == 0
         restored: bool
-        if host.owns_session { restored = Tabs.Restore(app, session_path) }
+        if host.owns_session && session_path != "" { restored = Tabs.Restore(app, session_path) }
         if !restored { Tabs.Open(app) }
     }
     host.started = app.session_count > 0
