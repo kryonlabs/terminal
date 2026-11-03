@@ -203,7 +203,7 @@ CheckSelectionAndScroll :: () -> bool {
     terminal.mouse_mode = 1000
     Input.Handle(app, copy_frame, false)
     terminal.mouse_mode = 0
-    if app.context_menu_open || Host.HostClipboardText() != "beta" || Host.write_count != 1 {
+    if app.context_menu_open || Host.HostClipboardText() != "beta" || Host.write_count != 1 || app.selection.active != 0 || app.selection.dragging != 0 {
         return Failure("Right-click copies selection without opening menu")
     }
     frame.now = 1.3
