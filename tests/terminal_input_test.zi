@@ -206,6 +206,14 @@ CheckSelectionAndScroll :: () -> bool {
     if app.context_menu_open || Host.HostClipboardText() != "beta" || Host.write_count != 1 || app.selection.active != 0 || app.selection.dragging != 0 {
         return Failure("Right-click copies selection without opening menu")
     }
+    Select.TerminalPaneSelectionBeginChar(*app.selection, 6, 2)
+    app.selection.dragging = 0
+    Host.HostClipboardReset("kept")
+    Input.Handle(app, copy_frame, false)
+    if app.context_menu_open || Host.HostClipboardText() != "kept" || Host.write_count != 0 || app.selection.active == 0 {
+        return Failure("Right-click keeps a selection that copied nothing")
+    }
+    app.selection.active = 0
     frame.now = 1.3
     Input.Handle(app, frame, false)
     if Clipboard.CollectSelection(app, output[:]) == 0 || Text.TextFromCString(*output[0]) != "alpha beta gamma" {

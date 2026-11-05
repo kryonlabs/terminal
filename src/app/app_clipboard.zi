@@ -29,7 +29,7 @@ CollectSelection :: (app: *State.State, output: []u8) -> s32 {
 }
 PrimaryAvailable :: () -> bool { return Pane.TerminalPaneClipboardPrimarySelectionAvailable() != 0 }
 UpdatePrimary :: (app: *State.State) { Pane.TerminalPaneClipboardUpdatePrimary(ActiveActions(app)) }
-CopySelection :: (app: *State.State) { Pane.TerminalPaneClipboardCopy(ActiveActions(app)) }
+CopySelection :: (app: *State.State) -> bool { return Pane.TerminalPaneClipboardCopy(ActiveActions(app)) != 0 }
 SelectAll :: (app: *State.State) { Pane.TerminalPaneClipboardSelectAll(ActiveActions(app)) }
 PasteText :: (session: *Session.Session, text: string) {
     if session == null || text == "" { return }
