@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Paste clipboard images with Ctrl+V, paste text with Ctrl+Shift+V, and drop image files into the active terminal. Keep running windows intact during installation.
+
 - New tabs open in the current folder of the tab they were opened from instead
   of the configured working directory or home folder.
 

@@ -33,6 +33,12 @@ standalone-window-test: $(APP)
 		LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
 		env TERMINAL_PRIVATE_XVFB=1 python3 tests/standalone_window_test.py "$(APP)"
 
+.PHONY: image-input-window-test
+image-input-window-test: $(APP)
+	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
+		HARMONY_DESKTOP_RECOVERY=0 LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
+		env TERMINAL_PRIVATE_XVFB=1 python3 tests/image_input_window_test.py "$(APP)"
+
 .PHONY: link-window-test
 link-window-test: $(APP)
 	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
@@ -181,7 +187,8 @@ reflow-cursor-test:
 
 install: $(APP)
 	mkdir -p "$(DESTDIR)$(BINDIR)" "$(DESTDIR)$(APPDIR)"
-	$(INSTALL) -m 755 "$(APP)" "$(DESTDIR)$(BINDIR)/terminal"
+	$(INSTALL) -m 755 "$(APP)" "$(DESTDIR)$(BINDIR)/.terminal-install"
+	mv -f "$(DESTDIR)$(BINDIR)/.terminal-install" "$(DESTDIR)$(BINDIR)/terminal"
 	{ \
 		printf '%s\n' '[Desktop Entry]' 'Type=Application' 'Name=Terminal'; \
 		printf '%s\n' 'Comment=Kryon terminal emulator' 'Exec=$(BINDIR)/terminal'; \

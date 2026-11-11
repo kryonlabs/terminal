@@ -6,6 +6,7 @@ Selection :: #import "app_selection";
 Pane :: #import "terminal_pane_clipboard";
 Engine :: #import "terminal";
 Data :: #import "terminal_clipboard";
+Drop :: #import "terminal_drop";
 
 Actions :: (app: *State.State, session: *Session.Session) -> Pane.TerminalPaneClipboardActions {
     selection: Pane.TerminalPaneClipboardController
@@ -20,6 +21,15 @@ ActiveActions :: (app: *State.State) -> Pane.TerminalPaneClipboardActions {
 }
 
 #scope_export
+ImagePath :: #type () -> string;
+image_path: ImagePath;
+PasteImage :: (session: *Session.Session) -> bool {
+    if session==null || image_path==null { return false }
+    path:=image_path(); if path=="" { return false }
+    buffer: [16384]u8; text:=Drop.DroppedPathText(path,buffer[:])
+    if text=="" { return false }
+    PasteText(session,text); return true
+}
 CollectSelection :: (app: *State.State, output: []u8) -> s32 {
     if output.count <= 0 { return 0 }
     output[0] = 0

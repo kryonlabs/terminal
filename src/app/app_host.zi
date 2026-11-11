@@ -11,6 +11,7 @@ Records :: #import "app_session";
 Profile :: #import "app_profile";
 Palette :: #import "app_palette";
 Clipboard :: #import "app_clipboard";
+Drop :: #import "terminal_drop";
 View :: #import "app_terminal_view";
 Input :: #import "app_input";
 Engine :: #import "terminal";
@@ -55,6 +56,19 @@ UpdateTitle :: (app: *State.State) -> bool {
 }
 
 #scope_export
+// A drop pastes a path into the active shell; it never submits a command.
+DropPath :: (host: *Host, path: string) -> bool {
+    if host == null || host.app == null || !host.started || Input.ModalActive(host.app) { return false }
+    active := Tabs.Active(host.app)
+    if active == null || active.terminal.running == 0 { return false }
+    buffer: [16384]u8
+    text := Drop.DroppedPathText(path, buffer[:])
+    if text == "" { return false }
+    Clipboard.PasteText(active, text)
+    host.fast_poll_until = cast(float64)Milliseconds()/1000.0 + 0.25
+    return true
+}
+
 Host :: struct {
     app: *State.State
     prepared: bool

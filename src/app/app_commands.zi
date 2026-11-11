@@ -16,6 +16,7 @@ Command :: enum s32 {
     Quit :: 1003
     Copy :: 1004
     Paste :: 1005
+    PasteImage :: 1043
     SelectAll :: 1006
     FontIncrease :: 1007
     FontDecrease :: 1008
@@ -72,6 +73,7 @@ Execute :: (app: *State.State, command: Command, persist: bool = true) -> bool {
     else if command == Command.Quit { app.quit_requested = true }
     else if command == Command.Copy { Clipboard.CopySelection(app) }
     else if command == Command.Paste { Clipboard.PasteClipboard(session) }
+    else if command == Command.PasteImage { unused Clipboard.PasteImage(session) }
     else if command == Command.SelectAll { Clipboard.SelectAll(app) }
     else if command == Command.FontIncrease { SetFontSize(app, app.config.font_size + 1, persist) }
     else if command == Command.FontDecrease { SetFontSize(app, app.config.font_size - 1, persist) }
@@ -123,6 +125,7 @@ HandleShortcut :: (app: *State.State, key: s32, modifiers: s32, persist: bool = 
     else if control && key == 260 { command = Command.Copy }
     else if control && shift && key == #char "C" { command = Command.Copy }
     else if control && shift && key == #char "V" { command = Command.Paste }
+    else if control && !alt && key == #char "V" { command = Command.PasteImage }
     else if control && shift && key == #char "A" { command = Command.SelectAll }
     else if control && shift && key == #char "F" { command = Command.Find }
     else if control && shift && key == #char "G" { command = Command.FindNext }
