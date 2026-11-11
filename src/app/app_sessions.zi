@@ -111,7 +111,11 @@ Open :: (app: *State.State, command: string = "") -> bool {
     if app.session_count == 0 { title = Text.TextFromCString(*app.launch.initial_title[0]) }
     script := command
     if script == "" { script = Text.TextFromCString(*app.config.command[0]) }
-    return OpenLaunch(app, "", script, title)
+    directory: [1024]u8
+    cwd: string
+    current := Active(app)
+    if current != null { cwd = Session.CurrentCwd(current, directory[:]) }
+    return OpenLaunch(app, cwd, script, title)
 }
 OpenLaunchSessions :: (app: *State.State) -> s32 {
     if app == null { return 0 }

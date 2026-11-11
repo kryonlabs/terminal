@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- New tabs open in the current folder of the tab they were opened from instead
+  of the configured working directory or home folder.
+
 - Alt-click opens visible web URLs and OSC 8 hyperlinks, including wrapped links
   and scrollback; Ctrl-click remains available, including in full-screen programs.
 

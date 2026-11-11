@@ -212,7 +212,11 @@ CheckSessions :: () -> bool {
     defer State.Dispose(app)
     Session.CopyText(app.launch.initial_title[:], "Initial title")
     if !Sessions.Open(app, "exec cat") || app.session_count != 1 || app.active != 0 ||
-        Session.Title(*app.sessions[0]) != "Initial title" { return false }
+        Session.Title(*app.sessions[0]) != "Initial title" || Value(app.sessions[0].cwd[:]) != "/" { return false }
+    Session.CopyText(app.sessions[0].terminal.current_directory[:], "/tmp")
+    if !Sessions.Open(app, "exec cat") || Value(app.sessions[1].cwd[:]) != "/tmp" { return false }
+    Sessions.Close(app, 1)
+    if app.session_count != 1 || app.active != 0 { return false }
     if !Sessions.Open(app, "exec cat") || !Sessions.Open(app, "exec cat") { return false }
     Session.SetTitle(*app.sessions[1], "Retained title")
     retained_fd := app.sessions[1].terminal.fd

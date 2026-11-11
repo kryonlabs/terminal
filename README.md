@@ -199,7 +199,8 @@ String values saved by Terminal use backslash escapes for tabs, newlines, and
 literal backslashes.
 
 Terminal starts a fresh shell in your home folder by default. A configured
-`working_directory` or an explicit launch directory overrides that default.
+`working_directory` or an explicit launch directory overrides that default. A
+new tab opens in the current directory of the tab it was opened from.
 Previous tabs and their last visited folders are not restored automatically.
 Saved tab metadata remains available to hosts that explicitly restore a session,
 including the active tab, working directories, shells, commands, scroll
