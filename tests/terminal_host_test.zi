@@ -122,6 +122,15 @@ CheckFrameOwnership :: () -> bool {
         return Failure("background view consumed desktop input")
     }
     host.app.menu.focused = false
+    link_text := "\x1b[2J\x1b[Hhttps://example.org"
+    Engine.terminal_feed(terminal, cast(*void)Bytes(link_text), cast(s32)link_text.count)
+    Input.KeyboardModifiersSend(frame, Input.KeyModifierAlt)
+    Input.TreePointerUpdate(frame, .{cast(float32)host.app.viewport.x + 5.0, cast(float32)host.app.viewport.y + 5.0, true, true, true})
+    if Draw(*host, frame, true, false).input.hyperlink != "https://example.org" || !NoBytes(terminal) {
+        return Failure("unfocused embedded Alt-click link through host")
+    }
+    Input.KeyboardModifiersSend(frame, 0)
+    Input.TreePointerUpdate(frame, .{})
     if Draw(*host, frame).node < 0 || !Observe(terminal, "\x1b[I") { return Failure("focus regain") }
     terminal.focus_reporting = 0
     Input.KeyboardSend(frame, Input.KeyTab)

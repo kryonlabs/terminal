@@ -59,9 +59,9 @@ ThemeStyle :: (kind: s32, background: u32, foreground: u32) -> Styles.StyleData 
 // Terminal's color roles or implement a second theme resolver.
 GetTerminalPaneThemeColors :: (dark: bool = false) -> TerminalPaneColors {
     palette := Theme.DefaultPalette(dark)
-    app := ThemeStyle(Sheet.StyleKindApp(), palette.background, palette.text)
-    surface := ThemeStyle(Sheet.StyleKindSurface(), palette.surface, palette.text)
-    text := ThemeStyle(Sheet.StyleKindText(), palette.surface, palette.text)
+    app := ThemeStyle(Sheet.StyleKindApp(), palette.background, palette.foreground)
+    surface := ThemeStyle(Sheet.StyleKindSurface(), palette.surface, palette.foreground)
+    text := ThemeStyle(Sheet.StyleKindText(), palette.surface, palette.foreground)
     link := ThemeStyle(Sheet.StyleKindLink(), palette.surface, palette.link)
     bg := Drawing.ColorFromPacked(app.background)
     if bg.a == 0 { bg = Drawing.ColorFromPacked(surface.background) }

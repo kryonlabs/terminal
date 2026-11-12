@@ -257,6 +257,15 @@ CheckSelectionAndScroll :: () -> bool {
     if Input.Handle(app, frame, false).hyperlink != "https://example.org" { return Failure("Alt-click visible URL in reporting TUI") }
     frame.left = .{false, false, true}
     if Input.Handle(app, frame, false).hyperlink != "" || !NoBytes(terminal) { return Failure("Link click leaked a half mouse event") }
+    // Embedded hosts can deliver an Alt-click before X focus transfers.
+    frame.focused = false; frame.left = .{true, true, false}; frame.keyboard.mods = Keys.TERMINAL_PANE_MOD_ALT
+    if Input.Handle(app, frame, false).hyperlink != "https://example.org" { return Failure("Unfocused embedded Alt-click URL") }
+    frame.left = .{false, false, true}
+    if Input.Handle(app, frame, false).hyperlink != "" || !NoBytes(terminal) { return Failure("Unfocused link release leaked a mouse event") }
+    held_alt: [1]s32 = .{342}
+    frame.focused = true; frame.keyboard.mods = 0; frame.keyboard.down = held_alt[:]; frame.left = .{true, true, true}
+    if Input.Handle(app, frame, false).hyperlink != "https://example.org" || !NoBytes(terminal) { return Failure("Held Alt key observation opens link") }
+    frame.keyboard.down = held_alt[0:0]
     terminal.mouse_mode = 0
     frame.keyboard.mods = 0; frame.left = .{true, true, false}
     if Input.Handle(app, frame, false).hyperlink != "" || app.selection.active == 0 { return Failure("Plain link click must select") }

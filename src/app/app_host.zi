@@ -16,6 +16,7 @@ View :: #import "app_terminal_view";
 Input :: #import "app_input";
 Engine :: #import "terminal";
 Keys :: #import "terminal_pane_keys";
+Keyboard :: #import "terminal_keyboard";
 Frames :: #import "kryon/session";
 Frame :: #import "kryon/Frame";
 Tree :: #import "kryon/tree";
@@ -221,6 +222,8 @@ Draw :: (host: *Host, frame: Frames.Session, bounds: Rectangle,
     result.node = -1
     if host == null || host.app == null || !host.started ||
         !Frames.SessionValid(frame) || !Tree.TreeIsBuilding(frame) { return result }
+    unfocused_pointer := Device.PointerSample(frame)
+    unfocused_mods := Keyboard.TerminalModifiers(Device.KeyboardModifiers(frame))
     suspended: Device.InputSnapshot
     if !device.focused {
         suspended = Device.TreeInputSuspend(frame)
@@ -247,6 +250,11 @@ Draw :: (host: *Host, frame: Frames.Session, bounds: Rectangle,
     codepoints: [32]u32
     input := Input.Capture(frame, key_buffer[:], codepoints[:], bounds,
         device.middle, device.now, device.focused)
+    if !device.focused {
+        input.x = unfocused_pointer.x; input.y = unfocused_pointer.y
+        input.left = .{unfocused_pointer.down, unfocused_pointer.pressed, unfocused_pointer.released}
+        input.keyboard.mods = unfocused_mods
+    }
     if !device.key_fresh {
         input.keyboard.repeated = input.keyboard.keys
         input.keyboard.keys = key_buffer[0:0]

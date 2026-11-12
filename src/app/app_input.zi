@@ -94,6 +94,13 @@ Contains :: (keys: []s32, key: s32) -> bool {
     for index: cast(s64)0..keys.count - 1 { if keys[index] == key { return true } }
     return false
 }
+LinkModifiers :: (keyboard: Keys.KeyboardFrame) -> bool {
+    if (keyboard.mods & (Keys.TERMINAL_PANE_MOD_ALT | Keys.TERMINAL_PANE_MOD_CTRL)) != 0 { return true }
+    return Contains(keyboard.keys, 341) || Contains(keyboard.keys, 342) ||
+        Contains(keyboard.keys, 345) || Contains(keyboard.keys, 346) ||
+        Contains(keyboard.down, 341) || Contains(keyboard.down, 342) ||
+        Contains(keyboard.down, 345) || Contains(keyboard.down, 346)
+}
 WheelSteps :: (wheel: float32) -> s32 {
     if wheel == 0.0 { return 0 }
     value := wheel
@@ -261,23 +268,24 @@ Handle :: (app: *State.State, frame: Frame, persist: bool = true) -> Result {
     result.cursor_hidden = app.mouse_hidden; result.cursor_changed = hidden != app.mouse_hidden
     SetFocus(app, frame.focused, frame.now)
     session := Sessions.Active(app)
-    if session == null || !frame.focused || ModalActive(app) {
+    if session == null || ModalActive(app) {
         app.link_pointer_claimed = false
         app.keyboard_state = Keys.TerminalPaneInputState.{}
         return result
     }
-    if frame.keyboard.keys.count > 0 || frame.keyboard.repeated.count > 0 || frame.keyboard.codepoints.count > 0 {
+    if frame.focused && (frame.keyboard.keys.count > 0 || frame.keyboard.repeated.count > 0 || frame.keyboard.codepoints.count > 0) {
         State.ResetCursorBlink(app, frame.now)
     }
     if app.link_pointer_claimed && !frame.left.pressed {
         if frame.left.released || !frame.left.down { app.link_pointer_claimed = false }
-        result.wrote = PumpKeyboard(app, frame.keyboard, persist)
+        if frame.focused { result.wrote = PumpKeyboard(app, frame.keyboard, persist) }
+        else { app.keyboard_state = Keys.TerminalPaneInputState.{} }
         return result
     }
-    // Link gestures take precedence over child mouse reporting. Alt-click
-    // must work in full-screen applications too, without sending half a click.
-    if Inside(app, frame) && frame.left.pressed &&
-        (frame.keyboard.mods & (Keys.TERMINAL_PANE_MOD_ALT | Keys.TERMINAL_PANE_MOD_CTRL)) != 0 {
+    // Link gestures take precedence over child mouse reporting and unfocused
+    // click-to-focus. Alt-click must work in full-screen and embedded views too,
+    // without sending half a click.
+    if Inside(app, frame) && frame.left.pressed && LinkModifiers(frame.keyboard) {
         col := cast(s32)((frame.x - app.viewport.x) / cast(float32)app.cell_w)
         viewport_row := cast(s32)((frame.y - app.viewport.y) / cast(float32)app.line_h)
         if viewport_row < app.visible_rows {
@@ -294,8 +302,14 @@ Handle :: (app: *State.State, frame: Frame, persist: bool = true) -> Result {
             app.link_pointer_claimed = !frame.left.released
             app.selection.active = 0; app.selection.dragging = 0
             app.mouse_report_button = Mouse.TERMINAL_PANE_MOUSE_RELEASE
+            if !frame.focused { app.keyboard_state = Keys.TerminalPaneInputState.{} }
             return result
         }
+    }
+    if !frame.focused {
+        app.link_pointer_claimed = false
+        app.keyboard_state = Keys.TerminalPaneInputState.{}
+        return result
     }
     if app.selection.active != 0 && Inside(app, frame) &&
         (frame.right.down || frame.right.pressed || frame.right.released) {

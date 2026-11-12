@@ -10,7 +10,11 @@ Text :: #import "std/byte_text_linux";
 CString :: #import "std/c_string";
 Geometry :: #import "kryon/geometry";
 libc :: #system_library "c";
+dl :: #system_library "dl";
 Environment :: (name: *s8) -> *s8 #foreign libc "getenv";
+MemoryCopy :: (target: *void, source: *void, count: usize) -> *void #foreign libc "memcpy";
+DlOpen :: (name: *u8, flags: s32) -> *void #foreign dl "dlopen";
+DlSymbol :: (handle: *void, name: *u8) -> *void #foreign dl "dlsym";
 Runtime :: #import "kryon/Raylib";
 Files :: #import "std/file_linux";
 Clock :: #import "std/timer_linux";
@@ -29,10 +33,57 @@ ShowCursor :: () #foreign raylib "ShowCursor";
 HideCursor :: () #foreign raylib "HideCursor";
 OpenURL :: (value: *u8) -> s32 #foreign sdl "SDL_OpenURL";
 VideoError :: () -> *u8 #foreign sdl "SDL_GetError";
+ModState :: () -> u32 #foreign sdl "SDL_GetModState";
+KeyboardFocus :: () -> *void #foreign sdl "SDL_GetKeyboardFocus";
+WindowFromId :: (id: u32) -> *void #foreign sdl "SDL_GetWindowFromID";
+Version :: (version: *u8) #foreign sdl "SDL_GetVersion";
+WMInfo :: struct { version: [3]u8; padding: u8; subsystem: s32; display: *void; window: u64; rest: [48]u8; }
+WindowInfo :: (window: *void, info: *WMInfo) -> s32 #foreign sdl "SDL_GetWindowWMInfo";
+FnQueryPointer :: #type (*void, u64, *u64, *u64, *s32, *s32, *s32, *s32, *u32) -> s32 #c_call;
+x_display: *void;
+x_window: u64;
+x_query_pointer: FnQueryPointer;
 DroppedFiles :: struct { count: u32; paths: **u8; }
 HasDroppedFiles :: () -> bool #foreign raylib "IsFileDropped";
 LoadDroppedFiles :: () -> DroppedFiles #foreign raylib "LoadDroppedFiles";
 UnloadDroppedFiles :: (files: DroppedFiles) #foreign raylib "UnloadDroppedFiles";
+
+BindX11 :: () {
+    x_display = null; x_window = 0
+    window := KeyboardFocus()
+    if window == null { window = WindowFromId(cast(u32)1) }
+    if window == null { return }
+    info: WMInfo
+    Version(*info.version[0])
+    if WindowInfo(window, *info) == 0 || info.subsystem != 2 || info.display == null || info.window == 0 { return }
+    lib_name: [16]u8; sym_name: [16]u8
+    if !CString.CopyCString("libX11.so.6", lib_name[:]) || !CString.CopyCString("XQueryPointer", sym_name[:]) { return }
+    handle := DlOpen(*lib_name[0], 1)
+    if handle == null { return }
+    symbol := DlSymbol(handle, *sym_name[0])
+    if symbol == null { return }
+    unused MemoryCopy(cast(*void)(*x_query_pointer), cast(*void)(*symbol), size_of(*void))
+    x_display = info.display; x_window = info.window
+}
+SDLModifiers :: (mods: u32) -> s32 {
+    result: s32
+    if (mods & cast(u32)0x3) != 0 { result |= 1 }
+    if (mods & cast(u32)0xc0) != 0 { result |= 2 }
+    if (mods & cast(u32)0x300) != 0 { result |= 4 }
+    if (mods & cast(u32)0xc00) != 0 { result |= 8 }
+    return result
+}
+PointerModifiers :: () -> s32 {
+    if x_display == null || x_window == 0 { return 0 }
+    root: u64; child: u64; root_x: s32; root_y: s32; local_x: s32; local_y: s32; mask: u32
+    if x_query_pointer(x_display, x_window, *root, *child, *root_x, *root_y, *local_x, *local_y, *mask) == 0 { return 0 }
+    result: s32
+    if (mask & cast(u32)1) != 0 { result |= 1 }
+    if (mask & cast(u32)4) != 0 { result |= 2 }
+    if (mask & cast(u32)8) != 0 { result |= 4 }
+    if (mask & cast(u32)64) != 0 { result |= 8 }
+    return result
+}
 
 
 EnvironmentText :: (name: string, output: []u8) -> string {
@@ -129,6 +180,7 @@ Open :: (launch: *Launch.LaunchOptions) -> bool {
         return false
     }
     Runtime.RaylibExitKey(0)
+    BindX11()
     if launch.drop_down {
         monitor := CurrentMonitor()
         width := MonitorWidth(monitor); height := MonitorHeight(monitor)
@@ -153,6 +205,7 @@ FitGeometry :: (launch: *Launch.LaunchOptions, size: Geometry.Vector2) {
     SetWindowSize(cast(s32)size.x, cast(s32)size.y)
 }
 Close :: () {
+    x_display = null; x_window = 0
     ShowCursor(); Runtime.CloseRaylib()
 }
 LoadFont :: (config: *Profile.TerminalPaneProfileSettings) -> bool {
@@ -200,7 +253,10 @@ Sample :: (session: Frames.Session, now: float64, down: []s32) -> Host.DeviceFra
     Device.PointerWheelSend(session, pointer.x, pointer.y, Runtime.RaylibWheelMove())
     // A modifier press must not consume the frame's key and discard a following
     // shortcut. It still counts when released again within this same frame.
-    modifiers := Runtime.RaylibModifiers()
+    modifiers := Runtime.RaylibModifiers() | SDLModifiers(ModState())
+    if pointer.pressed || pointer.down || pointer.released {
+        modifiers |= PointerModifiers()
+    }
     key := Runtime.RaylibPressedKey()
     for event: 0..511 {
         unused event

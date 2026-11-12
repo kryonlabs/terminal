@@ -23,6 +23,21 @@ Rule :: (rules: *Sheet.StyleRules, kind: s32, background: u32, foreground: u32, 
     rules.count += 1
 }
 
+// Lightens a packed color toward white so a surface can sit visibly above the
+// window background it belongs to, without a second palette.
+Lighten :: (color: u32, amount: float32) -> u32 {
+    red := cast(u32)cast(float32)((color >> cast(u32)24) & cast(u32)255)
+    green := cast(u32)cast(float32)((color >> cast(u32)16) & cast(u32)255)
+    blue := cast(u32)cast(float32)((color >> cast(u32)8) & cast(u32)255)
+    red = red + cast(u32)((255.0 - cast(float32)red) * amount + 0.5)
+    green = green + cast(u32)((255.0 - cast(float32)green) * amount + 0.5)
+    blue = blue + cast(u32)((255.0 - cast(float32)blue) * amount + 0.5)
+    if red > 255 { red = 255 }
+    if green > 255 { green = 255 }
+    if blue > 255 { blue = 255 }
+    return (red << cast(u32)24) | (green << cast(u32)16) | (blue << cast(u32)8) | (color & cast(u32)255)
+}
+
 #scope_export
 Palette :: struct {
     background: Color
@@ -60,10 +75,10 @@ Defaults :: (palette: *Palette) {
     palette.* = Palette.{}
     terminal := Pane.GetTerminalPaneThemeColors()
     base := Theme.DefaultPalette(false)
-    app := Role(Sheet.StyleKindApp(), base.background, base.text)
-    surface := Role(Sheet.StyleKindSurface(), base.surface, base.text)
-    text := Role(Sheet.StyleKindText(), base.surface, base.text)
-    button := Role(Sheet.StyleKindButton(), base.surface, base.text)
+    app := Role(Sheet.StyleKindApp(), base.background, base.foreground)
+    surface := Role(Sheet.StyleKindSurface(), base.surface, base.foreground)
+    text := Role(Sheet.StyleKindText(), base.surface, base.foreground)
+    button := Role(Sheet.StyleKindButton(), base.surface, base.foreground)
     hover := Sheet.ResolveInstalledStyleRules(button, Sheet.StyleDefaultFacts(Sheet.StyleKindButton()), 2)
     palette.background = Drawing.ColorFromPacked(app.background)
     palette.terminal_background = terminal.background
@@ -88,18 +103,24 @@ ApplySystemTheme :: (palette: *Palette) -> bool {
     if palette == null { return false }
     system := SystemTheme.SystemPaletteRead()
     base := Theme.DefaultPalette(system.dark)
+    // Chrome sits above the terminal pane, so it lifts off the shared base and
+    // the pane keeps the untouched window color.
+    chrome := Lighten(system.base, 0.06)
     rules: Sheet.StyleRules
     Rule(*rules, Sheet.StyleKindApp(), system.background, system.text)
-    Rule(*rules, Sheet.StyleKindSurface(), system.base, system.text)
+    Rule(*rules, Sheet.StyleKindSurface(), chrome, system.text)
     Rule(*rules, Sheet.StyleKindText(), system.base, system.text)
     Rule(*rules, Sheet.StyleKindLink(), system.base, base.link)
-    Rule(*rules, Sheet.StyleKindButton(), system.base, system.text)
+    Rule(*rules, Sheet.StyleKindButton(), chrome, system.text)
     Rule(*rules, Sheet.StyleKindButton(), system.selected, system.selected_text, 2)
-    Rule(*rules, Sheet.StyleKindTabBar(), system.base, system.text)
-    Rule(*rules, Sheet.StyleKindTab(), system.base, system.text)
+    Rule(*rules, Sheet.StyleKindTabBar(), chrome, system.text)
+    Rule(*rules, Sheet.StyleKindTab(), chrome, system.text)
     Rule(*rules, Sheet.StyleKindTab(), system.selected, system.selected_text, 4)
-    Rule(*rules, Sheet.StyleKindMenu(), system.base, system.text)
-    Rule(*rules, Sheet.StyleKindMenuItem(), system.base, system.text)
+    // The close glyph defaults to the light-palette foreground because Terminal
+    // installs no Kryon theme, so it needs its own rule like the tabs around it.
+    Rule(*rules, Sheet.StyleKindTabClose(), cast(u32)0, system.text)
+    Rule(*rules, Sheet.StyleKindMenu(), chrome, system.text)
+    Rule(*rules, Sheet.StyleKindMenuItem(), chrome, system.text)
     if !Sheet.InstallStyleRules(rules) { return false }
     // The menu bar and dialogs read their border, muted and hover colors from tokens.
     SystemTokens.SystemPaletteTokens(system)

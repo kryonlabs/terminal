@@ -261,6 +261,8 @@ DrawCell :: (session: Sessions.Session, node: s32, terminal: *Engine.Terminal,
     draw_text: TerminalPaneDrawTextFn, wide: bool, offset_y: float32 = 0.0) {
     foreground := CellColor(terminal, cell.fg, colors.text)
     background := CellColor(terminal, cell.bg, colors.background)
+    linked := cell.hyperlink > 0
+    if linked && cell.fg == Engine.COLOR_DEFAULT { foreground = colors.link }
     if (cell.style & Engine.STYLE_INVERSE) != 0 {
         swap := foreground; foreground = background; background = swap
     }
@@ -284,9 +286,11 @@ DrawCell :: (session: Sessions.Session, node: s32, terminal: *Engine.Terminal,
         Render.DrawTerminalPaneGlyphCell(session, node, cell.codepoint, cell.combining,
             cast(s32)bounds.x, cast(s32)bounds.y, font, foreground, measured.content)
     }
-    if (cell.style & Engine.STYLE_UNDERLINE) != 0 {
+    if (cell.style & Engine.STYLE_UNDERLINE) != 0 || linked {
+        underline := CellColor(terminal, cell.underline, foreground)
+        if linked && cell.underline == Engine.COLOR_DEFAULT { underline = colors.link }
         line := Geometry.RectangleIntersection(Rectangle.{bounds.x, bounds.y + bounds.height - 2.0, bounds.width, 1.0}, measured.content)
-        if line.width > 0.0 && line.height > 0.0 { Paint.PaintRoundedFill(session, node, line, 0.0, 0, CellColor(terminal, cell.underline, foreground)) }
+        if line.width > 0.0 && line.height > 0.0 { Paint.PaintRoundedFill(session, node, line, 0.0, 0, underline) }
     }
 }
 

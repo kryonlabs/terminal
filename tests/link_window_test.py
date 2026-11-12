@@ -57,11 +57,12 @@ def main():
                 assert int(xdo('getwindowpid', window)) == app.pid
                 geometry = dict(line.split('=', 1) for line in xdo('getwindowgeometry', '--shell', window).splitlines())
                 cell = int(geometry['WIDTH']) / 40; line = int(geometry['HEIGHT']) / 8
-                def click(modifier, row, before_focus=False):
-                    if before_focus:
+                def click(modifier, row, before_focus=False, unfocused=False):
+                    if before_focus or unfocused:
                         xdo('windowfocus', '0')
                     xdo('keydown', modifier)
-                    xdo('windowfocus', '--sync', window)
+                    if not unfocused:
+                        xdo('windowfocus', '--sync', window)
                     xdo('mousemove', '--window', window, int(cell * 2.5), int(line * (row + .5)))
                     time.sleep(.1)
                     xdo('mousedown', '1'); time.sleep(.1); xdo('mouseup', '1')
@@ -75,6 +76,9 @@ def main():
                 click('Control_L', 0)
                 wait(lambda: len(opened.read_text().splitlines()) == 3, 'Ctrl-click compatibility')
                 assert opened.read_text().splitlines() == [url, target, url]
+                click('Alt_L', 0, unfocused=True)
+                wait(lambda: len(opened.read_text().splitlines()) == 4, 'Unfocused/embedded Alt-click opens')
+                assert opened.read_text().splitlines() == [url, target, url, url]
                 time.sleep(.2)
                 assert incoming.read_bytes() == b'', 'Link gestures must not send half a mouse click'
                 close_window(window, app.pid, env); app.wait(timeout=5)
