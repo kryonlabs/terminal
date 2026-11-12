@@ -231,6 +231,14 @@ Draw :: (host: *Host, frame: Frames.Session, bounds: Rectangle,
     defer Device.TreeInputResume(frame, suspended)
     app := host.app
     was_modal := Input.ModalActive(app)
+    Input.SetFocus(app, device.focused, device.now)
+    // Observe keyboard activity before painting, then leave the event for its
+    // normal owner. Repeats and composed text keep the cursor visible too.
+    if device.focused && !was_modal {
+        key := Device.KeyboardTake(frame)
+        if key != 0 { unused Device.KeyboardSend(frame, key) }
+        if key != 0 || Device.TypedCodepointPeek(frame) != 0 { State.ResetCursorBlink(app, device.now) }
+    }
     pointer := Device.PointerSample(frame)
     drawn := View.Draw(frame, app, bounds,
         .{device.now, device.key_fresh, device.middle.pressed, pointer.x, pointer.y}, host.persist)

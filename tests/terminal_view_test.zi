@@ -1,6 +1,7 @@
 View :: #import "app_terminal_view";
 State :: #import "app_state";
 Records :: #import "app_session";
+Tabs :: #import "app_sessions";
 Profile :: #import "app_profile";
 Engine :: #import "terminal";
 Colors :: #import "terminal_pane_profile_colors";
@@ -192,6 +193,45 @@ CheckGraphicsAndCursor :: () -> bool {
     return true
 }
 
+CheckCursorBlink :: () -> bool {
+    frame := Frames.SessionOpen(); defer Frame.CloseSession(frame)
+    first := Application(); if first == null { return false }; defer State.Dispose(first)
+    second := Application(); if second == null { return false }; defer State.Dispose(second)
+    bounds := Rectangle.{0.0, 0.0, 64.0, 64.0}
+    cursor := Rectangle.{0.0, 0.0, 8.0, 16.0}
+    color := Color.{18, 52, 86, 255}
+    first.sessions[0].terminal.cursor_visible = 1; first.sessions[0].terminal.cursor_blink = 1
+    first.sessions[0].terminal.cursor_color = Engine.COLOR_TRUE_RGB | 0x123456
+    second.sessions[0].terminal.cursor_visible = 1; second.sessions[0].terminal.cursor_blink = 1
+    second.sessions[0].terminal.cursor_color = Engine.COLOR_TRUE_RGB | 0x123456
+    Begin(frame, first, bounds, 1000.75)
+    if !HasFill(frame, cursor, color) || !Finish(frame) { return Failure("first cursor starts visible") }
+    if View.NextTick(first, 1001.0) != 1001.25 { return Failure("cursor wake deadline") }
+    Begin(frame, first, bounds, 1001.25)
+    if HasFill(frame, cursor, color) || !Finish(frame) { return Failure("relative cursor off phase") }
+    Begin(frame, second, bounds, 1001.25)
+    if !HasFill(frame, cursor, color) || !Finish(frame) { return Failure("independent window cursor phase") }
+    first.window_focused = false
+    Begin(frame, first, bounds, 1001.25)
+    if !HasFill(frame, cursor, color) || !Finish(frame) { return Failure("inactive cursor becomes steady") }
+    Begin(frame, first, bounds, 1002.25)
+    if !HasFill(frame, cursor, color) || !Finish(frame) || View.NextTick(first, 1002.0) != 1002.5 {
+        return Failure("inactive cursor stays steady")
+    }
+    first.window_focused = true
+    first.session_count = 2
+    first.sessions[1].terminal.cursor_color = Engine.COLOR_TRUE_RGB | 0x123456
+    first.sessions[1].terminal.cursor_blink = 1
+    Tabs.SetActive(first, 1)
+    Begin(frame, first, bounds, 1002.5)
+    if !HasFill(frame, cursor, color) || !Finish(frame) { return Failure("tab activation restarts cursor") }
+    Begin(frame, first, bounds, 1003.0)
+    if HasFill(frame, cursor, color) || !Finish(frame) { return Failure("activated tab cursor blinks") }
+    Begin(frame, first, bounds, 0.0)
+    if !HasFill(frame, cursor, color) || !Finish(frame) { return Failure("backward clock restarts cursor") }
+    return true
+}
+
 CheckScrollAndBell :: () -> bool {
     frame := Frames.SessionOpen(); defer Frame.CloseSession(frame)
     app := Application(); if app == null { return false }; defer State.Dispose(app)
@@ -361,6 +401,7 @@ main :: () -> s32 {
     if !CheckTabsAndDialogs() { return 4 }
     if !CheckLargeGrid() { return 5 }
     if !CheckTabReordering() { return 6 }
+    if !CheckCursorBlink() { return 7 }
     print("Terminal view rendering and retained interaction passed\n")
     return 0
 }

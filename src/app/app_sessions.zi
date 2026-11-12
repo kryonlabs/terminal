@@ -73,6 +73,7 @@ MovedIndex :: (index: s32, from: s32, to: s32) -> s32 {
 CloseInternal :: (app: *State.State, index: s32, replace: bool) {
     if app == null || index < 0 || index >= app.session_count { return }
     was_active := index == app.active
+    if was_active { app.cursor_blink_ready = false }
     if was_active && app.window_focused { Engine.terminal_send_focus(*app.sessions[index].terminal, 0) }
     Session.Close(*app.sessions[index])
     for tab: index..app.session_count - 2 { app.sessions[tab] = app.sessions[tab + 1] }
@@ -99,6 +100,7 @@ SetActive :: (app: *State.State, index: s32) {
     if app == null || index < 0 || index >= app.session_count { return }
     old := app.active
     if old != index {
+        app.cursor_blink_ready = false
         if app.window_focused && old >= 0 && old < app.session_count { Engine.terminal_send_focus(*app.sessions[old].terminal, 0) }
         app.active = index
         if app.window_focused { Engine.terminal_send_focus(*app.sessions[index].terminal, 1) }

@@ -8,6 +8,7 @@ Frames :: #import "kryon/session";
 Frame :: #import "kryon/Frame";
 Input :: #import "kryon/tree_input";
 Tree :: #import "kryon/tree";
+Paint :: #import "kryon/paint_queue";
 Geometry :: #import "kryon/geometry";
 Text :: #import "std/byte_text_linux";
 ClipboardHost :: #import "terminal_clipboard_host";
@@ -38,16 +39,18 @@ Open :: (host: *Host.Host, command: string = "", hold: bool = false,
     Pause(30)
     return true
 }
+cursor_painted: bool;
 Draw :: (host: *Host.Host, frame: Frames.Session, fresh: bool = true,
-    focused: bool = true, held: bool = false, middle: bool = false) -> Host.FrameResult {
+    focused: bool = true, held: bool = false, middle: bool = false, now: float64 = 1.0) -> Host.FrameResult {
     PaintHost.Reset()
     Host.BeginFrame(host, frame, cast(u64)1, Bounds(), focused)
     device: Host.DeviceFrame
-    device.now = 1.0; device.focused = focused; device.key_fresh = fresh
+    device.now = now; device.focused = focused; device.key_fresh = fresh
     device.middle.pressed = middle
     held_keys: [1]s32 = .{#char "A"}
     if held { device.down = held_keys[:] }
     result := Host.Draw(host, frame, Bounds(), device)
+    cursor_painted = CursorVisible(frame)
     if cast(s32)Frame.EndFrame(frame) != 0 { result.node = -1 }
     return result
 }
@@ -156,6 +159,46 @@ CheckFrameOwnership :: () -> bool {
     if Draw(*host, frame).input.wrote != 0 || host.app.about_visible || !NoBytes(terminal) {
         return Failure("closing About leaked its device frame")
     }
+    return true
+}
+
+CursorVisible :: (frame: Frames.Session) -> bool {
+    for index: 0..Paint.PendingPaintCount(frame) - 1 {
+        command := Paint.PendingPaintAt(frame, index)
+        if command.kind == 2 && command.color.r == 18 && command.color.g == 52 &&
+            command.color.b == 86 && command.color.a == 255 { return true }
+    }
+    return false
+}
+CheckCursorBlink :: () -> bool {
+    host: Host.Host
+    defer Host.Close(*host)
+    if !Open(*host, EchoCommand()) { return false }
+    frame := Frames.SessionOpen(); defer Frame.CloseSession(frame)
+    terminal := *host.app.sessions[0].terminal
+    terminal.cursor_color = Engine.COLOR_TRUE_RGB | 0x123456; terminal.cursor_blink = 1
+    unused Draw(*host, frame, true, true, false, false, 10.25)
+    if !cursor_painted { return Failure("focus starts visible in the same frame") }
+    unused Draw(*host, frame, true, true, false, false, 10.75)
+    if cursor_painted { return Failure("focused cursor blinks") }
+    unused Draw(*host, frame, true, false, false, false, 10.8)
+    if !cursor_painted { return Failure("focus loss becomes steady in the same frame") }
+    unused Draw(*host, frame, true, false, false, false, 11.3)
+    if !cursor_painted { return Failure("background cursor stays steady") }
+    unused Draw(*host, frame, true, true, false, false, 11.75)
+    if !cursor_painted { return Failure("focus regain restarts cursor") }
+    unused Draw(*host, frame, true, true, false, false, 12.3)
+    if cursor_painted { return Failure("cursor resumes blink after focus") }
+    Input.TypedCodepointSend(frame, #char "a")
+    if Draw(*host, frame, true, true, false, false, 12.4).input.wrote != 1 ||
+        !cursor_painted || !Observe(terminal, "a") { return Failure("typing shows cursor without consuming input") }
+    unused Draw(*host, frame, true, true, false, false, 12.8)
+    if !cursor_painted { return Failure("typing keeps cursor visible for half a second") }
+    unused Draw(*host, frame, true, true, false, false, 12.95)
+    if cursor_painted { return Failure("blink resumes after typing") }
+    Input.KeyboardSend(frame, Input.KeyLeft)
+    if Draw(*host, frame, false, true, false, false, 13.1).input.wrote != 3 ||
+        !cursor_painted || !Observe(terminal, "\x1b[D") { return Failure("repeated key restarts cursor and reaches child") }
     return true
 }
 
@@ -336,6 +379,7 @@ main :: () -> s32 {
     if !CheckMiddleClick() { return 5 }
     if !CheckPersistence() { return 6 }
     if !CheckBashCompletion() { return 7 }
+    if !CheckCursorBlink() { return 8 }
     print("Terminal shared host lifecycle and frame ownership passed\n")
     return 0
 }

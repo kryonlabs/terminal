@@ -32,6 +32,8 @@ configuration, state, runtime locks and tmux socket are disposable.
 
 The window tests need Xvfb, xauth, xdotool, xset and tmux; they scrub inherited
 session and display variables before creating their private display.
+`cursor-blink-window-test` also uses xwd to verify cursor visibility in two
+windows, focus changes, typing, and terminal-requested steady/hidden modes.
 
 The focused Ziran suites exercise the actual engine, configuration, sessions,
 launch options, application state, input, view, host, widget, clipboard and
@@ -211,6 +213,9 @@ or `~/.local/state/terminal/session`.
 Terminal chrome and default terminal foreground/background/cursor colors follow
 the Kryon system theme. Explicit profile colors and OSC color changes stay in
 control until reset.
+
+The cursor stays steady in inactive windows. Focusing a window, switching tabs,
+or typing restarts its blink with the cursor visible for half a second.
 
 Chinese, Japanese, Korean and other scripts use Kryon's per-glyph system-font
 fallback while the terminal keeps its monospace cell grid. Install a font

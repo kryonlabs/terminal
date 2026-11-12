@@ -296,6 +296,25 @@ ViewInput :: struct {
 }
 ViewResult :: struct { node: s32; font_changed: bool; }
 
+CursorBlinkOn :: (app: *State.State, now: float64) -> bool {
+    if !app.cursor_blink_ready || now < app.cursor_blink_at { State.ResetCursorBlink(app, now) }
+    return !app.window_focused || (cast(s64)((now - app.cursor_blink_at) * 2.0) & 1) == 0
+}
+
+// Text blink keeps its own phase; cursor deadlines follow this window's last
+// focus or input instead of the system clock's half-second boundaries.
+NextTick :: (app: *State.State, now: float64) -> float64 {
+    next := cast(float64)(cast(s64)(now * 2.0) + 1) / 2.0
+    active := Tabs.Active(app)
+    if active != null && app.window_focused && active.scroll_offset == 0 &&
+        active.terminal.cursor_visible != 0 && active.terminal.cursor_blink != 0 {
+        if !app.cursor_blink_ready || now < app.cursor_blink_at { State.ResetCursorBlink(app, now) }
+        cursor := app.cursor_blink_at + cast(float64)(cast(s64)((now - app.cursor_blink_at) * 2.0) + 1) / 2.0
+        if cursor < next { next = cursor }
+    }
+    return next
+}
+
 Draw :: (frame: Frames.Session, app: *State.State, bounds: Rectangle,
     input: ViewInput, persist: bool = true) -> ViewResult {
     result: ViewResult
@@ -349,7 +368,7 @@ Draw :: (frame: Frames.Session, app: *State.State, bounds: Rectangle,
         blink_on := (cast(s64)(input.now * 2.0) & 1) == 0
         DrawSixel(frame, result.node, app, terminal, colors)
         DrawCells(frame, result.node, app, terminal, theme, colors, blink_on)
-        DrawCursor(frame, result.node, app, active, colors, blink_on)
+        DrawCursor(frame, result.node, app, active, colors, CursorBlinkOn(app, input.now))
         if app.bell_until > input.now {
             alpha := cast(float32)((app.bell_until - input.now) / 0.18)
             if alpha > 1.0 { alpha = 1.0 }

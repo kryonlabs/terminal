@@ -58,7 +58,7 @@ Run :: (arguments: []string) -> s32 {
     Window.Title(Host.Title(*host))
     capture := Window.CaptureRequested()
     // Nothing changes between events, so an idle window sleeps instead of
-    // drawing. Blinking and timed chrome step on the half second.
+    // drawing. Wake for text blink and this window's cursor blink deadline.
     settle_until: float64; next_tick: float64; painted: float64; waits := !capture
     input_frames: s32
     shells: [64]s32
@@ -85,7 +85,6 @@ Run :: (arguments: []string) -> s32 {
                 continue
             }
         }
-        if now >= next_tick { next_tick = cast(float64)(cast(s64)(now * 2.0) + 1) / 2.0 }
         if input_frames > 0 { input_frames -= 1 }
         painted = now
         Window.Begin()
@@ -97,6 +96,7 @@ Run :: (arguments: []string) -> s32 {
             return Error("Terminal: could not begin a UI frame")
         }
         result := Host.Draw(*host, session, bounds, device)
+        next_tick = View.NextTick(host.app, now)
         if cast(s32)Frame.EndFrame(session) != 0 {
             Window.End()
             return Error("Terminal: could not draw the UI frame")

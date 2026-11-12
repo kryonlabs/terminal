@@ -39,6 +39,8 @@ State :: struct {
     tab_last_click_valid: bool
     quit_requested: bool
     window_focused: bool
+    cursor_blink_at: float64
+    cursor_blink_ready: bool
     about_visible: bool
     rename_index: s32
     rename_cursor: s32
@@ -102,6 +104,11 @@ Allocate :: () -> *State {
     app := cast(*State)AllocateHost(cast(usize)1, cast(usize)size_of(State))
     if app != null { Init(app) }
     return app
+}
+
+ResetCursorBlink :: (app: *State, now: float64) {
+    if app == null { return }
+    app.cursor_blink_at = now; app.cursor_blink_ready = true
 }
 
 Dispose :: (app: *State) {

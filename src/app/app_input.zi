@@ -42,6 +42,13 @@ ModalActive :: (app: *State.State) -> bool {
     return app != null && (app.about_visible || app.rename_index >= 0 ||
         app.search_visible || app.profile_prompt != 0 || app.context_menu_open || app.menu.open_index >= 0 || app.menu.focused)
 }
+SetFocus :: (app: *State.State, focused: bool, now: float64) {
+    if app == null || focused == app.window_focused { return }
+    app.window_focused = focused
+    if focused { State.ResetCursorBlink(app, now) }
+    session := Sessions.Active(app)
+    if session != null { Engine.terminal_send_focus(*session.terminal, ifx focused then 1 else 0) }
+}
 // Capture only when the application owns keyboard input; dialogs and menus
 // consume the session's events themselves while they are open.
 Capture :: (session: Frames.Session, keys: []s32, codepoints: []u32,
@@ -252,16 +259,15 @@ Handle :: (app: *State.State, frame: Frame, persist: bool = true) -> Result {
     hidden := app.mouse_hidden
     AutoHide(app, frame)
     result.cursor_hidden = app.mouse_hidden; result.cursor_changed = hidden != app.mouse_hidden
-    if frame.focused != app.window_focused {
-        app.window_focused = frame.focused
-        session := Sessions.Active(app)
-        if session != null { Engine.terminal_send_focus(*session.terminal, ifx frame.focused then 1 else 0) }
-    }
+    SetFocus(app, frame.focused, frame.now)
     session := Sessions.Active(app)
     if session == null || !frame.focused || ModalActive(app) {
         app.link_pointer_claimed = false
         app.keyboard_state = Keys.TerminalPaneInputState.{}
         return result
+    }
+    if frame.keyboard.keys.count > 0 || frame.keyboard.repeated.count > 0 || frame.keyboard.codepoints.count > 0 {
+        State.ResetCursorBlink(app, frame.now)
     }
     if app.link_pointer_claimed && !frame.left.pressed {
         if frame.left.released || !frame.left.down { app.link_pointer_claimed = false }
