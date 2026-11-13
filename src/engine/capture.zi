@@ -151,6 +151,23 @@ capture_finish :: (terminal: *Terminal) {
     terminal.capture_scrolled = false
 }
 
+// A capture newline separates rows; it is not a PTY line feed. tmux writes
+// only attribute changes and trims each row's trailing blanks, so the last
+// cell's colors stay current across the newline. Background color erase
+// would then fill every newly entered row with them: one green tmux status
+// or diff row painted the following rows green. Enter each row with default
+// blank cells, then keep the carried attributes for the cells that follow.
+capture_newline :: (terminal: *Terminal) {
+    fg := terminal.current_fg; bg := terminal.current_bg
+    underline := terminal.current_underline; style := terminal.current_style
+    hyperlink := terminal.current_hyperlink
+    reset_current_style(terminal); terminal.current_hyperlink = 0
+    terminal_feed(terminal, cast(*void)RawBytes("\r\n"), 2)
+    terminal.current_fg = fg; terminal.current_bg = bg
+    terminal.current_underline = underline; terminal.current_style = style
+    terminal.current_hyperlink = hyperlink
+}
+
 #scope_export
 #program_export
 terminal_feed_capture :: (terminal: *Terminal, data: *void, count: s32,
@@ -183,7 +200,7 @@ trim_final_linefeed: bool) -> bool {
         }
         if bytes[index] == 10 {
             if index > start { terminal_feed(terminal, cast(*void)(*bytes[start]), index - start) }
-            terminal_feed(terminal, cast(*void)RawBytes("\r\n"), 2)
+            capture_newline(terminal)
             start = index + 1
         }
         index += 1

@@ -89,7 +89,10 @@ cols: s32, rows: s32) -> bool {
     }
     candidate.source = source; candidate.cols = cols; candidate.rows = rows
     candidate.source_cols = source.cols; candidate.source_history = history
-    candidate.blank = terminal_blank_cell(source)
+    // Cells past a row's end are not written cells. Painting them with the
+    // parser's current SGR state turned a resized pane the color of its last
+    // captured cell, such as a green tmux status row. Pad in default colors.
+    candidate.blank = terminal_blank_cell(null)
     for logical: 0..history - 1 {
         soft := ifx reflow then terminal_visible_line_wrapped(source, logical) else 0
         count := ifx reflow then viewport_source_end(source, logical, history, soft) else (ifx source.cols < cols then source.cols else cols)

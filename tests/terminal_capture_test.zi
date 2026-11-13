@@ -14,12 +14,23 @@ Bytes :: (value: string) -> *u8 {
 Feed :: (terminal: *Terminal, value: string) {
     terminal_feed(terminal, cast(*void)Bytes(value), cast(s32)value.count)
 }
+// A captured row starts blank in default colors; the attributes carried
+// across its newline apply only to the cells written after it.
+Newline :: (terminal: *Terminal) {
+    fg := terminal.current_fg; bg := terminal.current_bg; underline := terminal.current_underline
+    style := terminal.current_style; hyperlink := terminal.current_hyperlink
+    terminal.current_fg = COLOR_DEFAULT; terminal.current_bg = COLOR_DEFAULT
+    terminal.current_underline = COLOR_DEFAULT; terminal.current_style = 0; terminal.current_hyperlink = 0
+    Feed(terminal, "\r\n")
+    terminal.current_fg = fg; terminal.current_bg = bg; terminal.current_underline = underline
+    terminal.current_style = style; terminal.current_hyperlink = hyperlink
+}
 Replay :: (terminal: *Terminal, value: string, trim: bool) {
     end := cast(s32)value.count
     if trim && end > 0 && value[end - 1] == 10 { end -= 1 }
     start: s32
     for index: 0..end - 1 {
-        if value[index] == 10 { Feed(terminal, value[start:index]); Feed(terminal, "\r\n"); start = index + 1 }
+        if value[index] == 10 { Feed(terminal, value[start:index]); Newline(terminal); start = index + 1 }
     }
     Feed(terminal, value[start:end])
 }
@@ -175,6 +186,28 @@ main :: () -> s32 {
                 return 1
             }
         }
+    }
+    // tmux capture-pane -e keeps a row's final attributes across its newline
+    // and trims trailing blanks. A green row must not paint the next rows.
+    for size: 0..cast(s32)1 {
+        green: Vec(u8)
+        rows: s32 = ifx size == 0 then 6 else 60
+        for row: 0..rows - 1 { BuilderPrint(*green, "row %\n", row) }
+        BuilderPrint(*green, "a\x1b[42mgreen line\n\x1b[49mafter\n\x1b[30m\x1b[42m[status]\nkept\x1b[49m plain\n")
+        value := BuilderFinish(green)
+        defer { Release(value) }
+        colors: Terminal; terminal_init(*colors); terminal_resize(*colors, 40, 8)
+        ok := terminal_feed_capture(*colors, cast(*void)Bytes(value), cast(s32)value.count, true)
+        after := terminal_visible_line_count(*colors) - 3
+        for col: 5..cast(s32)39 { ok = ok && terminal_visible_cell(*colors, col, after).bg == COLOR_DEFAULT }
+        ok = ok && terminal_visible_cell(*colors, 20, after - 1).bg == COLOR_DEFAULT
+        for col: 8..cast(s32)39 { ok = ok && terminal_visible_cell(*colors, col, after + 1).bg == COLOR_DEFAULT }
+        // Unchanged attributes continue: tmux emits nothing for them.
+        kept := terminal_visible_cell(*colors, 0, after + 2)
+        ok = ok && kept.bg == 2 && kept.fg == 0 && terminal_visible_cell(*colors, 30, after + 2).bg == COLOR_DEFAULT
+        ok = ok && terminal_visible_cell(*colors, 1, after - 1).bg == 2 && terminal_visible_cell(*colors, 0, after + 1).bg == 2
+        terminal_close(*colors)
+        if !ok { print("Captured row colors leaked across newlines: %\n", rows); return 1 }
     }
     detached: Terminal; terminal_init(*detached); terminal_resize(*detached, 80, 24)
     if !terminal_feed_capture(*detached, null, 0, true) ||

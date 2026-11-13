@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Keep captured terminal rows in their own colors when reflowing or resizing,
+  so a colored diff or status row cannot flood later blank rows.
+
 ## [0.1.0] - 2026-11-13
 
 - Releases publish `terminal-linux-amd64.deb` and
