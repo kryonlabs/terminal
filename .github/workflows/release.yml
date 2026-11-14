@@ -79,6 +79,7 @@ jobs:
             xdotool \
             x11-apps \
             x11-xserver-utils \
+            xclip \
             xvfb
 
       - name: Build locked Ziran tools
@@ -104,19 +105,8 @@ jobs:
             [0-9]*) ;;
             *) deb_version="0.0.0+${deb_version}" ;;
           esac
-          package="terminal-linux-x86_64-${version}"
-          mkdir -p "dist/${package}/bin"
-          cp build/linux-x86_64/bin/terminal "dist/${package}/bin/terminal"
-          cp README.md "dist/${package}/README.md"
-          cp docs/REMAINING_FEATURE_PLAN.md \
-            "dist/${package}/REMAINING_FEATURE_PLAN.md"
-          if [ -d benchmarks/results ]; then
-            mkdir -p "dist/${package}/benchmarks"
-            cp benchmarks/README.md "dist/${package}/benchmarks/README.md"
-          fi
-          tar -C dist -czf "dist/${package}.tar.gz" "${package}"
-
-          deb_root="dist/deb/terminal_${deb_version}_amd64"
+          # Version-free names keep /releases/latest/download/<name> stable.
+          deb_root="dist/deb/terminal"
           mkdir -p "${deb_root}/DEBIAN" \
             "${deb_root}/usr/bin" \
             "${deb_root}/usr/share/applications" \
@@ -138,6 +128,14 @@ jobs:
           Categories=System;TerminalEmulator;
           Keywords=shell;prompt;command;terminal;
           EOF
+          # Depends comes from the binary's real libraries, GTK included.
+          mkdir -p dist/shlibdeps/debian
+          printf 'Source: terminal\n\nPackage: terminal\nArchitecture: any\n' \
+            > dist/shlibdeps/debian/control
+          depends="$(cd dist/shlibdeps && dpkg-shlibdeps -O \
+            "${GITHUB_WORKSPACE}/${TERMINAL_DIR}/${deb_root}/usr/bin/terminal" |
+            sed -n 's/^shlibs:Depends=//p')"
+          test -n "${depends}"
           cat > "${deb_root}/DEBIAN/control" <<EOF
           Package: terminal
           Version: ${deb_version}
@@ -145,7 +143,7 @@ jobs:
           Priority: optional
           Architecture: amd64
           Maintainer: Waozi <waozi@proton.me>
-          Depends: libc6, libsdl2-2.0-0, libgl1, libwebp7, libwebpdemux2
+          Depends: ${depends}
           Recommends: fonts-dejavu-core
           Description: Kryon terminal emulator
            Terminal is a standalone terminal application using Kryon for windowing,
@@ -153,7 +151,7 @@ jobs:
           EOF
           chmod 644 "${deb_root}/DEBIAN/control"
           dpkg-deb --build --root-owner-group "${deb_root}" \
-            "dist/terminal_${deb_version}_amd64.deb"
+            "dist/terminal-linux-amd64.deb"
 
           appdir="dist/AppDir"
           mkdir -p "${appdir}/usr/bin" \
@@ -164,33 +162,43 @@ jobs:
             "${appdir}/usr/share/icons/hicolor/scalable/apps/terminal.svg"
           cp "${deb_root}/usr/share/applications/terminal.desktop" \
             "${appdir}/usr/share/applications/terminal.desktop"
-          cp "${appdir}/usr/share/applications/terminal.desktop" \
-            "${appdir}/terminal.desktop"
-          cp "${appdir}/usr/share/icons/hicolor/scalable/apps/terminal.svg" \
-            "${appdir}/terminal.svg"
-          cat > "${appdir}/AppRun" <<'EOF'
-          #!/bin/sh
-          HERE="$(dirname "$(readlink -f "$0")")"
-          export PATH="${HERE}/usr/bin:${PATH}"
-          exec "${HERE}/usr/bin/terminal" "$@"
-          EOF
-          chmod +x "${appdir}/AppRun"
-          curl -fL -o /tmp/appimagetool \
-            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x /tmp/appimagetool
-          ARCH=x86_64 /tmp/appimagetool --appimage-extract-and-run \
-            "${appdir}" "dist/terminal-x86_64-${version}.AppImage"
+          # linuxdeploy bundles SDL2, WebP and their dependencies. GTK, GLib,
+          # Cairo, Pango and GL come from the host: a bundled GTK would not
+          # match the desktop's themes and modules.
+          linuxdeploy="${RUNNER_TEMP}/linuxdeploy-x86_64.AppImage"
+          curl -fsSL -o "${linuxdeploy}" \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-x86_64.AppImage
+          echo "c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d  ${linuxdeploy}" |
+            sha256sum -c -
+          chmod 755 "${linuxdeploy}"
+          root="${GITHUB_WORKSPACE}/${TERMINAL_DIR}"
+          (
+            cd dist
+            APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 \
+              LINUXDEPLOY_OUTPUT_VERSION="${deb_version}" \
+              LDAI_OUTPUT=terminal-linux-x86_64.AppImage \
+              "${linuxdeploy}" --appdir "${root}/${appdir}" \
+              --executable "${root}/${appdir}/usr/bin/terminal" \
+              --desktop-file "${root}/${appdir}/usr/share/applications/terminal.desktop" \
+              --icon-file "${root}/${appdir}/usr/share/icons/hicolor/scalable/apps/terminal.svg" \
+              --exclude-library 'libgtk-3.so*' --exclude-library 'libgdk-3.so*' \
+              --exclude-library 'libgdk_pixbuf-2.0.so*' --exclude-library 'libglib-2.0.so*' \
+              --exclude-library 'libgobject-2.0.so*' --exclude-library 'libgio-2.0.so*' \
+              --exclude-library 'libgmodule-2.0.so*' --exclude-library 'libcairo*' \
+              --exclude-library 'libpango*' --exclude-library 'libatk*' \
+              --exclude-library 'libGL.so*' --exclude-library 'libGLX*' \
+              --output appimage
+          )
+          test -x dist/terminal-linux-x86_64.AppImage
 
-          sha256sum "dist/${package}.tar.gz" \
-            "dist/terminal_${deb_version}_amd64.deb" \
-            "dist/terminal-x86_64-${version}.AppImage" > "dist/SHA256SUMS"
+          sha256sum dist/terminal-linux-amd64.deb \
+            dist/terminal-linux-x86_64.AppImage > dist/SHA256SUMS
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: terminal-linux-x86_64
           path: |
-            ${{ env.TERMINAL_DIR }}/dist/*.tar.gz
             ${{ env.TERMINAL_DIR }}/dist/*.deb
             ${{ env.TERMINAL_DIR }}/dist/*.AppImage
             ${{ env.TERMINAL_DIR }}/dist/SHA256SUMS
@@ -203,4 +211,5 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: >
           gh release upload "${RELEASE_TAG}"
-          dist/*.tar.gz dist/*.deb dist/*.AppImage dist/SHA256SUMS --clobber
+          dist/terminal-linux-amd64.deb dist/terminal-linux-x86_64.AppImage
+          dist/SHA256SUMS --clobber

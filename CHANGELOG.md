@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-13
+
+- Releases publish `terminal-linux-amd64.deb` and
+  `terminal-linux-x86_64.AppImage` under fixed names, so
+  `/releases/latest/download/` links always fetch the newest build. The
+  package's dependencies now come from the binary itself, GTK included, and
+  the AppImage bundles SDL2 and WebP.
 - Keep inactive window cursors steady and restart cursor blinking on focus,
   typing, and tab changes instead of blinking all windows together.
 
