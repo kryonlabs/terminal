@@ -1,6 +1,7 @@
 // Compare the complete emulator state to the original normalized replay,
 // including history rings, blank styles, delayed wrapping and later feeds.
 #import "terminal";
+ClipboardHost :: #import "terminal_clipboard_host";
 Text :: #import "std/byte_text_linux";
 #import "std/text"
 

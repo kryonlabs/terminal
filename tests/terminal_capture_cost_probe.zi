@@ -1,6 +1,7 @@
 // Linux diagnostic for Harmony's detached capture/reflow sequence. Timed
 // stages are inclusive native wall/thread CPU costs, not full interaction.
 Engine :: #import "terminal";
+ClipboardHost :: #import "terminal_clipboard_host";
 Timer :: #import "std/timer_linux";
 Text :: #import "std/byte_text_linux";
 #import "std/text"

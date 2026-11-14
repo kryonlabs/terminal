@@ -7,7 +7,7 @@ Sessions :: #import "app_session";
 Selection :: #import "terminal_pane_selection";
 Mouse :: #import "terminal_pane_mouse";
 Keys :: #import "terminal_pane_keys";
-Menus :: #import "kryon/menu_props";
+Menus :: #import "kryon/menu";
 
 #scope_file
 libc :: #system_library "c";
@@ -60,6 +60,7 @@ State :: struct {
     mouse_report_x: s32
     mouse_report_y: s32
     link_text: [8192]u8
+    context_link: [8192]u8
     link_pointer_claimed: bool
     mouse_report_button: s32
     selection_click_time: float64
@@ -69,6 +70,7 @@ State :: struct {
     context_menu_open: bool
     context_menu_x: s32
     context_menu_y: s32
+    fullscreen_toggle_requested: bool
     keyboard_state: Keys.TerminalPaneInputState
     mouse_hidden: bool
     last_mouse_x: s32

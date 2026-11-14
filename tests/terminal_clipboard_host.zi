@@ -6,6 +6,8 @@ available: bool = true;
 reject_write: bool;
 read_count: s32;
 write_count: s32;
+primary: [262144]u8;
+primary_length: s64;
 
 HostClipboardReset :: (text: string) {
     for index: cast(s64)0..text.count - 1 { stored[index] = text[index] }
@@ -17,6 +19,12 @@ HostClipboardReset :: (text: string) {
 }
 
 HostClipboardText :: () -> string { return TextView(stored[0:stored_length]) }
+
+HostPrimaryReset :: (text: string) {
+    for index: cast(s64)0..text.count - 1 { primary[index] = text[index] }
+    primary_length = text.count
+    available = true
+}
 
 #program_export
 SystemClipboardOpenHost :: () -> s32 {
@@ -37,5 +45,25 @@ SystemClipboardWriteHost :: (text: string) -> bool {
     for index: cast(s64)0..text.count - 1 { stored[index] = text[index] }
     stored_length = text.count
     write_count += 1
+    return true
+}
+
+#program_export
+SystemPrimaryOpenHost :: () -> s32 {
+    if !available { return -1 }
+    return cast(s32)primary_length
+}
+
+#program_export
+SystemPrimaryByteHost :: (index: s32) -> s32 {
+    if !available || index < 0 || cast(s64)index >= primary_length { return -1 }
+    return cast(s32)primary[index]
+}
+
+#program_export
+SystemPrimaryWriteHost :: (text: string) -> bool {
+    if !available || text.count >= primary.count { return false }
+    for index: cast(s64)0..text.count - 1 { primary[index] = text[index] }
+    primary_length = text.count
     return true
 }

@@ -1,5 +1,5 @@
 State :: #import "app_state";
-Tabs :: #import "kryon/Widgets";
+Tabs :: #import "kryon/tab_bar";
 
 MenuBarHeight :: (app: *State.State) -> s32 {
     if app == null || !app.launch.show_menubar { return 0 }

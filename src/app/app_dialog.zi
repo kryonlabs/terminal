@@ -1,14 +1,16 @@
 #scope_module
-using UI :: #import "kryon/Widgets";
+#import "kryon/control_props"
+Modal :: #import "kryon/modal";
+Button :: #import "kryon/button";
 Sessions :: #import "kryon/session";
-Fields :: #import "kryon/text_input_props";
+Fields :: #import "kryon/text_field";
 Text :: #import "std/text_buffer";
 Tree :: #import "kryon/tree";
 Kinds :: #import "kryon/widget_kind";
 
 #scope_export
 // Kryon owns editing policy; Terminal owns the prompt's bounded storage.
-ApplyEdit :: (output: []u8, edit: Fields.TextFieldEdit) -> bool {
+ApplyEdit :: (output: []u8, edit: Fields.Edit) -> bool {
     if !edit.changed || output.count <= 0 || output.count > 1024 { return false }
     next: [1024]u8
     used: s64
@@ -33,26 +35,26 @@ ApplyEdit :: (output: []u8, edit: Fields.TextFieldEdit) -> bool {
 // Zero means no action, one Cancel, two the affirmative action.
 Draw :: (session: Sessions.Session, key: u64, title: string, action: string,
     output: []u8, cursor: *s32, anchor: *s32, scroll_x: *s32,
-    focused: *bool, input: Fields.TextFieldInput, scale: float32 = 1.0) -> s32 {
+    focused: *bool, input: Fields.Input, scale: float32 = 1.0) -> s32 {
     if output.count <= 0 || output.count > 1024 || cursor == null || anchor == null ||
     scroll_x == null || focused == null { return 0 }
     if scale <= 0.0 { scale = 1.0 }
-    frame_props: ModalFrameProps
+    frame_props: Modal.Props
     frame_props.key = key; frame_props.title = title
     frame_props.width = cast(s32)(420.0 * scale); frame_props.height = cast(s32)(160.0 * scale)
     frame_props.scale = scale
     frame_props.has_right_action = true; frame_props.right_label = "Close"
-    frame := ModalFrame(session, frame_props)
+    frame := Modal.Draw(session, frame_props)
     if frame.dismissed || frame.right_clicked { return 1 }
     if !frame.opened { return 0 }
-    edit: Fields.TextFieldEdit
+    edit: Fields.Edit
     replacement: [1024]u8
     replacement_count: s64
     valid_edit: bool = true
     next_cursor: s32; next_anchor: s32; next_scroll: s32
     next_focused: bool; committed: bool; escaped: bool
     {
-        field: TextFieldProps
+        field: Fields.Props
         field.key = key + cast(u64)1; field.focus_id = cast(s32)(key + cast(u64)1)
         field.bounds = frame.layout.content
         field.bounds.height = 32.0 * scale
@@ -66,7 +68,7 @@ Draw :: (session: Sessions.Session, key: u64, title: string, action: string,
         previous := Tree.TreePrevious(session, Tree.TreeCurrentParent(session), field.key,
             cast(s32)Kinds.WidgetKind.WidgetKindTextField)
         field.input.focus = input.focus || (focused.* && previous < 0)
-        result := TextField(session, field)
+        result := Fields.Draw(session, field)
         next_cursor = result.cursor; next_anchor = result.anchor; next_scroll = result.scroll_x
         next_focused = result.focused; committed = result.committed; escaped = result.escaped
         edit.changed = result.edit.changed; edit.start = result.edit.start; edit.end = result.edit.end
@@ -87,21 +89,21 @@ Draw :: (session: Sessions.Session, key: u64, title: string, action: string,
         cursor.* = next_cursor; anchor.* = next_anchor; scroll_x.* = next_scroll
     }
     focused.* = next_focused
-    cancel: ButtonProps
+    cancel: Button.Props
     cancel.key = key + cast(u64)2; cancel.label = "Cancel"
     cancel.bounds = frame.layout.content
     cancel.bounds.width = 100.0 * scale; cancel.bounds.height = 32.0 * scale
     cancel.bounds.y += frame.layout.content.height - cancel.bounds.height
     cancel.bounds.x += frame.layout.content.width - cancel.bounds.width * 2.0 - 12.0 * scale
     cancel.emphasis = ButtonEmphasis.ButtonEmphasisSoft
-    cancel_clicked := Button(session, cancel) != 0
+    cancel_clicked := Button.Draw(session, cancel) != 0
     confirm := cancel
     confirm.key = key + cast(u64)3; confirm.label = action
     confirm.bounds.x += cancel.bounds.width + 12.0 * scale
     confirm.emphasis = ButtonEmphasis.ButtonEmphasisFilled
     confirm.tone = ButtonTone.ButtonToneAccent
-    confirm_clicked := Button(session, confirm) != 0
-    End(session)
+    confirm_clicked := Button.Draw(session, confirm) != 0
+    Tree.End(session)
     if escaped || cancel_clicked { return 1 }
     if committed || confirm_clicked { return 2 }
     return 0

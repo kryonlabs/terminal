@@ -3,7 +3,7 @@ Sessions :: #import "app_sessions";
 Session :: #import "app_session";
 Input :: #import "app_input";
 Menu :: #import "app_menu";
-Menus :: #import "kryon/menu_props";
+Menus :: #import "kryon/menu";
 Engine :: #import "terminal";
 Keys :: #import "terminal_pane_keys";
 Types :: #import "terminal_pane_profile_types";
@@ -107,8 +107,9 @@ CheckKeyboard :: () -> bool {
     app.config.delete_binding = Types.TERMINAL_PANE_KEY_BINDING_ASCII_DELETE
     if SendKey(app, UI.KeyDelete).wrote != 1 || !Observe(terminal, "\x7f") { return Failure("Configured Delete binding") }
     Host.HostClipboardReset("insert paste")
+    Data.SetPrimarySelectionFromText(Bytes("insert primary"))
     SendKey(app, UI.KeyInsert, Keys.TERMINAL_PANE_MOD_CTRL | Keys.TERMINAL_PANE_MOD_SHIFT)
-    if !Observe(terminal, "insert paste") { return Failure("Shift-Insert paste takes priority over Control-Insert copy") }
+    if !Observe(terminal, "insert primary") { return Failure("Shift-Insert uses PRIMARY despite Control") }
     terminal.focus_reporting = 1
     frame = Device(); frame.focused = false
     Input.Handle(app, frame, false)
@@ -170,7 +171,7 @@ CheckPointerProtocols :: () -> bool {
     Data.SetPrimarySelectionFromText(Bytes(""))
     frame.wheel = 0.0; frame.middle = .{true, true, true}
     Input.Handle(app, frame, false)
-    if !Observe(terminal, "system paste") { return Failure("Middle-button clipboard fallback") }
+    if !NoBytes(terminal) { return Failure("Middle-button must not fall back to CLIPBOARD") }
     Data.SetPrimarySelectionFromText(Bytes("primary paste"))
     Input.Handle(app, frame, false)
     if !Observe(terminal, "primary paste") { return Failure("Middle-button primary preference") }
@@ -200,19 +201,21 @@ CheckSelectionAndScroll :: () -> bool {
     }
     Host.HostClipboardReset("")
     copy_frame := Device(); copy_frame.right = .{true, true, true}
-    terminal.mouse_mode = 1000
     Input.Handle(app, copy_frame, false)
-    terminal.mouse_mode = 0
-    if app.context_menu_open || Host.HostClipboardText() != "beta" || Host.write_count != 1 || app.selection.active != 0 || app.selection.dragging != 0 {
-        return Failure("Right-click copies selection without opening menu")
+    if !app.context_menu_open || Host.HostClipboardText() != "" || Host.write_count != 0 ||
+        app.selection.active == 0 || app.selection.dragging != 0 {
+        return Failure("Right-click opens the menu without copying or clearing the selection")
     }
+    app.context_menu_open = false
     Select.TerminalPaneSelectionBeginChar(*app.selection, 6, 2)
     app.selection.dragging = 0
     Host.HostClipboardReset("kept")
     Input.Handle(app, copy_frame, false)
-    if app.context_menu_open || Host.HostClipboardText() != "kept" || Host.write_count != 0 || app.selection.active == 0 {
-        return Failure("Right-click keeps a selection that copied nothing")
+    if !app.context_menu_open || Host.HostClipboardText() != "kept" || Host.write_count != 0 ||
+        app.selection.active == 0 {
+        return Failure("Right-click preserves an existing selection and clipboard")
     }
+    app.context_menu_open = false
     app.selection.active = 0
     frame.now = 1.3
     Input.Handle(app, frame, false)
@@ -254,7 +257,10 @@ CheckSelectionAndScroll :: () -> bool {
     Feed(terminal, "\x1b[2J\x1b[Hhttps://example.org")
     frame.left = .{true, true, false}
     terminal.mouse_mode = 1000; terminal.mouse_sgr = 1
-    if Input.Handle(app, frame, false).hyperlink != "https://example.org" { return Failure("Alt-click visible URL in reporting TUI") }
+    visible_link := Input.Handle(app, frame, false)
+    if visible_link.hyperlink != "https://example.org" || !visible_link.link_hovered {
+        return Failure("Alt-click and hover visible URL in reporting TUI")
+    }
     frame.left = .{false, false, true}
     if Input.Handle(app, frame, false).hyperlink != "" || !NoBytes(terminal) { return Failure("Link click leaked a half mouse event") }
     // Embedded hosts can deliver an Alt-click before X focus transfers.

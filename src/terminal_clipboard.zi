@@ -48,6 +48,18 @@ Store :: (buffer: *ClipboardBuffer, text: string, pending: bool) -> bool {
 SetPrimary :: (text: string) -> bool {
     if !CString.CopyCString(text, primary_bytes[:]) { return false }
     primary_length = text.count
+    // Keep the local copy as the fallback for hosts without PRIMARY.
+    unused System.SystemPrimarySet(text)
+    return true
+}
+
+SyncPrimaryFromHost :: () -> bool {
+    if !System.SystemPrimaryAvailable() { return false }
+    {
+        text := System.SystemPrimaryText(primary_bytes[0:CLIPBOARD_BUFFER_SIZE - 1])
+        primary_length = text.count
+    }
+    primary_bytes[primary_length] = 0
     return true
 }
 
@@ -165,7 +177,10 @@ SetPrimarySelectionFromText :: (text: *u8) -> s32 {
 }
 
 #program_export
-GetPrimarySelectionTextValue :: () -> *u8 { return *primary_bytes[0] }
+GetPrimarySelectionTextValue :: () -> *u8 {
+    SyncPrimaryFromHost()
+    return *primary_bytes[0]
+}
 
 #program_export
 CopySelectionTextToClipboard :: (buffer: *void, text: *u8) -> s32 {
@@ -201,6 +216,9 @@ FlushClipboardBufferToHost :: (buffer: *ClipboardBuffer) -> s32 {
 
 #program_export
 ClipboardSourceHasText :: (source: s32) -> s32 {
+    if source == CLIPBOARD_SOURCE_PRIMARY || source == CLIPBOARD_SOURCE_PRIMARY_OR_CLIPBOARD {
+        SyncPrimaryFromHost()
+    }
     if source == CLIPBOARD_SOURCE_PRIMARY { return cast(s32)(primary_length > 0) }
     if source == CLIPBOARD_SOURCE_PRIMARY_OR_CLIPBOARD && primary_length > 0 { return 1 }
     return cast(s32)System.SystemClipboardHasText()
@@ -277,6 +295,9 @@ WriteClipboardTextPaste :: (buffer: *ClipboardBuffer, text: *u8,
 WriteClipboardSourcePaste :: (buffer: *ClipboardBuffer, source: s32,
     bracketed: s32, write_text: ClipboardPasteWriteFn, userdata: *void) -> s32 {
     if buffer == null { return 0 }
+    if source == CLIPBOARD_SOURCE_PRIMARY || source == CLIPBOARD_SOURCE_PRIMARY_OR_CLIPBOARD {
+        SyncPrimaryFromHost()
+    }
     if source != CLIPBOARD_SOURCE_PRIMARY &&
        !(source == CLIPBOARD_SOURCE_PRIMARY_OR_CLIPBOARD && primary_length > 0) {
         SyncClipboardBufferFromHost(buffer)
@@ -308,6 +329,7 @@ HandleClipboardOSC52 :: (buffer: *ClipboardBuffer, payload: *u8,
         response: [4096]u8
         source := cast(State.ClipboardSource)CLIPBOARD_SOURCE_CLIPBOARD
         if primary && !system { source = cast(State.ClipboardSource)CLIPBOARD_SOURCE_PRIMARY }
+        if source == cast(State.ClipboardSource)CLIPBOARD_SOURCE_PRIMARY { SyncPrimaryFromHost() }
         content := State.ClipboardRead(Snapshot(buffer), source).text
         if targets.count > 32 { return 0 }
         used: s64 = 5

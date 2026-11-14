@@ -1,5 +1,13 @@
 #scope_module
-using UI :: #import "kryon/Widgets";
+#import "kryon/geometry"
+#import "kryon/drawing_props"
+#import "kryon/tree_input"
+#import "kryon/key_input"
+#import "kryon/input_protocol"
+Image :: #import "kryon/image";
+TabBar :: #import "kryon/tab_bar";
+Modal :: #import "kryon/modal";
+Label :: #import "kryon/text";
 Frames :: #import "kryon/session";
 Paint :: #import "kryon/paint_queue";
 Geometry :: #import "kryon/geometry";
@@ -55,22 +63,22 @@ ColorFor :: (app: *State.State, terminal: *Engine.Terminal,
 BackgroundImage :: (frame: Frames.Session, app: *State.State, viewport: Rectangle) {
     path := Text.TextUntilNul(app.config.background_image[:])
     if path == "" || viewport.width <= 0.0 || viewport.height <= 0.0 { return }
-    props: ImageProps
+    props: Image.Props
     props.key = cast(u64)1401; props.asset_path = path
-    props.bounds = viewport; props.fit = ImageFit.ImageFitCover
-    Image(frame, props)
+    props.bounds = viewport; props.fit = Image.ImageFit.ImageFitCover
+    Image.Draw(frame, props)
 }
 
 DrawTabs :: (frame: Frames.Session, app: *State.State, bounds: Rectangle,
     input: ViewInput) {
     if !Chrome.TabBarVisible(app) { return }
-    tabs: [8]Tab
+    tabs: [8]TabBar.Tab
     for index: 0..app.session_count - 1 {
         tabs[index].key = cast(u64)(1500 + index)
         tabs[index].label = Records.Title(*app.sessions[index])
         tabs[index].closeable = app.session_count > 1
     }
-    props: TabBarProps
+    props: TabBar.Props
     props.key = cast(u64)1500; props.bounds = bounds; props.scale = app.scale
     props.selected_index = app.active
     props.min_tab_width = cast(s32)(72.0 * app.scale)
@@ -84,7 +92,7 @@ DrawTabs :: (frame: Frames.Session, app: *State.State, bounds: Rectangle,
     props.input.now = cast(float32)input.now
     props.input.middle_click = input.middle_pressed
     props.input.middle_x = input.middle_x; props.input.middle_y = input.middle_y
-    result := TabBar(frame, props, tabs[0:app.session_count])
+    result := TabBar.Draw(frame, props, tabs[0:app.session_count])
     app.tab_scroll = result.scroll_offset
     app.tab_dragging = result.dragging; app.tab_drag_from = result.drag_from
     app.tab_last_clicked_index = result.last_clicked_index
@@ -252,13 +260,13 @@ DrawDialogs :: (frame: Frames.Session, app: *State.State, persist: bool) -> bool
         key := KeyboardTake(frame)
         ignored: [128]u8
         TypedTextTake(frame, ignored[:])
-        props: ActionModalProps
+        props: Modal.ActionModalProps
         props.key = cast(u64)9100; props.title = "Terminal"
         props.message = "A Kryon terminal application."; props.scale = app.scale
         props.show_close = true; props.close_label = "Close"
-        actions: [1]ActionModalAction
+        actions: [1]Modal.ActionModalAction
         actions[0].key = cast(u64)9101; actions[0].label = "OK"
-        result := ActionModal(frame, props, actions[:])
+        result := Modal.ActionModal(frame, props, actions[:])
         if result.action != 0 || key == KeyEscape || key == KeyEnter { app.about_visible = false }
     }
     Search.Draw(frame, app)
@@ -322,10 +330,6 @@ Draw :: (frame: Frames.Session, app: *State.State, bounds: Rectangle,
     if app == null || !Frames.SessionValid(frame) || !Tree.TreeIsBuilding(frame) { return result }
     Paint.PaintRoundedFill(frame, Tree.TreeCurrentParent(frame), bounds, 0.0, 0, Opaque(app.palette.background))
     menu_h := Chrome.MenuBarHeight(app)
-    if menu_h > 0 {
-        Menu.Draw(frame, app, Rectangle.{bounds.x, bounds.y, bounds.width, cast(float32)menu_h},
-            persist, input.menu_key_fresh)
-    }
     tab_h := Chrome.TabBarHeight(app)
     if tab_h > 0 {
         DrawTabs(frame, app, Rectangle.{bounds.x, bounds.y + cast(float32)menu_h,
@@ -341,12 +345,12 @@ Draw :: (frame: Frames.Session, app: *State.State, bounds: Rectangle,
     if active == null {
         Paint.PaintRoundedFill(frame, result.node, viewport, 0.0, 0,
             Opacity(theme.background, app.config.background_opacity))
-        props: TextProps
+        props: Label.Props
         props.key = cast(u64)1402; props.text = "Starting terminal..."
         props.bounds = Rectangle.{viewport.x + 10.0, viewport.y + 10.0,
             viewport.width - 20.0, 24.0 * app.scale}
-        props.font = app.config.font_size; props.wrap = TextWrap.TextWrapNone
-        UI.Text(frame, props)
+        props.size = app.config.font_size; props.wrap = Label.Wrap.TextWrapNone
+        Label.Draw(frame, props)
     } else {
         terminal := *active.terminal
         Profile.SeedMissing(*app.config, *app.palette, terminal)
@@ -382,6 +386,13 @@ Draw :: (frame: Frames.Session, app: *State.State, bounds: Rectangle,
             Pane.DrawTerminalPaneScrollIndicator(frame, result.node,
                 .{viewport, active.scroll_offset, cast(s32)(13.0 * app.scale), theme}, app.scale)
         }
+    }
+    // Kryon menus are submitted after the page content: their dropdown and
+    // submenu panels must paint above, and take pointer input over, the tabs
+    // and terminal pane. Dialogs and the context menu still stack on top.
+    if menu_h > 0 {
+        Menu.Draw(frame, app, Rectangle.{bounds.x, bounds.y, bounds.width, cast(float32)menu_h},
+            persist, input.menu_key_fresh)
     }
     result.font_changed = DrawDialogs(frame, app, persist)
     return result

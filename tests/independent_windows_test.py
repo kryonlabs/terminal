@@ -40,7 +40,7 @@ def main():
                     "KRYON_CAPTURE_PATH", "ENV", "BASH_ENV", "TMUX"):
             env.pop(key, None)
         env.update(XDG_CONFIG_HOME=str(work / "config"), XDG_STATE_HOME=str(work / "state"),
-                   XDG_RUNTIME_DIR=str(runtime), SDL_VIDEODRIVER="x11", YUE_DESKTOP_RECOVERY="0",
+                   XDG_RUNTIME_DIR=str(runtime), SDL_VIDEODRIVER="x11", HARMONY_DESKTOP_RECOVERY="0",
                    KTREM_TARGET_FPS="15", KTREM_ACTIVE_FPS="30", KTREM_PTY_BURST_MS="0",
                    LP_NUM_THREADS="1", OMP_NUM_THREADS="1")
         # Isolate the legacy runtime's singleton lock as well as the display.

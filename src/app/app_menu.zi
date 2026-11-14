@@ -4,34 +4,40 @@ Commands :: #import "app_commands";
 Engine :: #import "terminal";
 Keys :: #import "terminal_pane_keys";
 Frames :: #import "kryon/session";
-Menus :: #import "kryon/menu_props";
-using UI :: #import "kryon/Widgets";
+Menus :: #import "kryon/menu";
+#import "kryon/geometry"
+#import "kryon/tree_input"
+#import "kryon/key_input"
+#import "kryon/input_protocol"
 
 #scope_file
-Item :: (command: Commands.Command, label: string, accelerator: string = "") -> MenuItem {
-    result: MenuItem
+Item :: (command: Commands.Command, label: string, accelerator: string = "") -> Menus.MenuItem {
+    result: Menus.MenuItem
     result.id = cast(s32)command; result.label = label; result.accelerator = accelerator
     return result
 }
 Open :: (app: *State.State, index: s32) {
-    MenuStateInit(*app.menu)
+    Menus.MenuStateInit(*app.menu)
     app.menu.open_index = index; app.menu.top_index = index
     app.menu.focused = true; app.menu.reveal = true
 }
 
 #scope_export
+OpenPreferences :: (app: *State.State) {
+    if app != null { Open(app, 3) }
+}
 // Physical app shortcuts are consumed before terminal protocol encoding.
 // Repeats belong to the shortcut but do not toggle the menu repeatedly.
 HandleShortcut :: (app: *State.State, key: s32, mods: s32, fresh: bool = true) -> bool {
     if app == null { return false }
     if key == 290 && app.config.disable_help_shortcut == 0 {
-        if fresh { MenuStateInit(*app.menu); app.about_visible = true }
+        if fresh { Menus.MenuStateInit(*app.menu); app.about_visible = true }
         return true
     }
     if !app.launch.show_menubar { return false }
     if key == 299 && app.config.disable_menu_shortcut == 0 {
         if fresh {
-            if app.menu.focused || app.menu.open_index >= 0 { MenuStateInit(*app.menu) }
+            if app.menu.focused || app.menu.open_index >= 0 { Menus.MenuStateInit(*app.menu) }
             else { app.menu.focused = true }
         }
         return true
@@ -53,8 +59,8 @@ HandleShortcut :: (app: *State.State, key: s32, mods: s32, fresh: bool = true) -
 Draw :: (frame: Frames.Session, app: *State.State, bounds: Rectangle,
     persist: bool = true, fresh: bool = true) {
     if app == null { return }
-    if !app.launch.show_menubar { MenuStateInit(*app.menu); return }
-    props: MenuProps
+    if !app.launch.show_menubar { Menus.MenuStateInit(*app.menu); return }
+    props: Menus.Props
     props.key = cast(u64)1200; props.bounds = bounds; props.scale = app.scale
     owned := app.menu.focused || app.menu.open_index >= 0
     if owned {
@@ -71,33 +77,33 @@ Draw :: (frame: Frames.Session, app: *State.State, bounds: Rectangle,
             props.input.escape = key == KeyEscape
         }
     }
-    file: [4]MenuItem
+    file: [4]Menus.MenuItem
     file[0] = Item(Commands.Command.NewTab, "New Tab", "Ctrl+Shift+T")
     file[1] = Item(Commands.Command.CloseTab, "Close Tab", "Ctrl+Shift+W")
-    file[2].kind = MenuItemKind.MenuSeparator
+    file[2].kind = Menus.MenuItemKind.MenuSeparator
     file[3] = Item(Commands.Command.Quit, "Quit", "Ctrl+Shift+Q")
-    edit: [7]MenuItem
+    edit: [7]Menus.MenuItem
     edit[0] = Item(Commands.Command.Copy, "Copy", "Ctrl+Shift+C")
     edit[1] = Item(Commands.Command.Paste, "Paste", "Ctrl+Shift+V")
     edit[2] = Item(Commands.Command.SelectAll, "Select All", "Ctrl+Shift+A")
-    edit[3].kind = MenuItemKind.MenuSeparator
+    edit[3].kind = Menus.MenuItemKind.MenuSeparator
     edit[4] = Item(Commands.Command.Find, "Find", "Ctrl+Shift+F")
     edit[5] = Item(Commands.Command.FindNext, "Find Next", "Ctrl+Shift+G")
     edit[6] = Item(Commands.Command.FindPrevious, "Find Previous", "Ctrl+Shift+B")
-    view: [3]MenuItem
+    view: [3]Menus.MenuItem
     view[0] = Item(Commands.Command.FontIncrease, "Zoom In", "Ctrl++")
     view[1] = Item(Commands.Command.FontDecrease, "Zoom Out", "Ctrl+-")
     view[2] = Item(Commands.Command.FontReset, "Normal Size", "Ctrl+0")
-    cursor: [3]MenuItem
+    cursor: [3]Menus.MenuItem
     cursor[0] = Item(Commands.Command.CursorBlock, "Block")
     cursor[1] = Item(Commands.Command.CursorUnderline, "Underline")
     cursor[2] = Item(Commands.Command.CursorBar, "Bar")
-    for index: 0..2 { cursor[index].kind = MenuItemKind.MenuRadio }
+    for index: 0..2 { cursor[index].kind = Menus.MenuItemKind.MenuRadio }
     cursor[0].checked = app.config.cursor_style == Engine.TERMINAL_CURSOR_BLOCK
     cursor[1].checked = app.config.cursor_style == Engine.TERMINAL_CURSOR_UNDERLINE
     cursor[2].checked = app.config.cursor_style == Engine.TERMINAL_CURSOR_BAR
-    terminal: [29]MenuItem
-    terminal[0] = file[0]; terminal[1] = edit[1]; terminal[2].kind = MenuItemKind.MenuSeparator
+    terminal: [29]Menus.MenuItem
+    terminal[0] = file[0]; terminal[1] = edit[1]; terminal[2].kind = Menus.MenuItemKind.MenuSeparator
     terminal[3] = Item(Commands.Command.ProfileShell, "Shell...")
     terminal[4] = Item(Commands.Command.ProfileCwd, "Working Directory...")
     terminal[5] = Item(Commands.Command.ProfileFontFile, "Terminal Font...")
@@ -108,8 +114,8 @@ Draw :: (frame: Frames.Session, app: *State.State, bounds: Rectangle,
     terminal[10] = Item(Commands.Command.ProfileCursorColor, "Cursor Color...")
     terminal[11] = Item(Commands.Command.ProfileSelectionForeground, "Selection Foreground...")
     terminal[12] = Item(Commands.Command.ProfileSelectionBackground, "Selection Background...")
-    terminal[13].kind = MenuItemKind.MenuSubmenu; terminal[13].label = "Cursor Style"; terminal[13].submenu = cursor[:]
-    terminal[14].kind = MenuItemKind.MenuSeparator
+    terminal[13].kind = Menus.MenuItemKind.MenuSubmenu; terminal[13].label = "Cursor Style"; terminal[13].submenu = cursor[:]
+    terminal[14].kind = Menus.MenuItemKind.MenuSeparator
     terminal[15] = Item(Commands.Command.ProfileDynamicTitleMode, "Dynamic Title Mode...")
     terminal[16] = Item(Commands.Command.ProfileBackspaceBinding, "Backspace Key...")
     terminal[17] = Item(Commands.Command.ProfileDeleteBinding, "Delete Key...")
@@ -124,17 +130,17 @@ Draw :: (frame: Frames.Session, app: *State.State, bounds: Rectangle,
     terminal[26] = Item(Commands.Command.ProfileDisableHelpShortcut, "Disable F1 Help Shortcut...")
     terminal[27] = Item(Commands.Command.ProfileBackgroundOpacity, "Background Opacity...")
     terminal[28] = Item(Commands.Command.ProfileBackgroundImage, "Background Image...")
-    tabs: [5]MenuItem
-    tabs[0] = file[0]; tabs[1] = file[1]; tabs[2].kind = MenuItemKind.MenuSeparator
+    tabs: [5]Menus.MenuItem
+    tabs[0] = file[0]; tabs[1] = file[1]; tabs[2].kind = Menus.MenuItemKind.MenuSeparator
     tabs[3] = Item(Commands.Command.NextTab, "Next Tab", "Ctrl+Tab")
     tabs[4] = Item(Commands.Command.PreviousTab, "Previous Tab", "Ctrl+Shift+Tab")
-    help: [1]MenuItem
+    help: [1]Menus.MenuItem
     help[0] = Item(Commands.Command.About, "About Terminal")
-    groups: [6]MenuGroup
+    groups: [6]Menus.MenuGroup
     groups[0] = .{"File", file[:]}; groups[1] = .{"Edit", edit[:]}
     groups[2] = .{"View", view[:]}; groups[3] = .{"Terminal", terminal[:]}
     groups[4] = .{"Tabs", tabs[:]}; groups[5] = .{"Help", help[:]}
-    result := Menu(frame, props, groups[:], *app.menu)
+    result := Menus.Draw(frame, props, groups[:], *app.menu)
     if owned || app.menu.focused || app.menu.open_index >= 0 {
         ignored: [128]u8
         TypedTextTake(frame, ignored[:])

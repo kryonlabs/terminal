@@ -21,6 +21,7 @@ Frames :: #import "kryon/session";
 Frame :: #import "kryon/Frame";
 Tree :: #import "kryon/tree";
 Device :: #import "kryon/tree_input";
+Cursor :: #import "kryon/cursor";
 Text :: #import "std/text_buffer";
 Bytes :: #import "std/byte_text_linux";
 using Geometry :: #import "kryon/geometry";
@@ -268,6 +269,9 @@ Draw :: (host: *Host, frame: Frames.Session, bounds: Rectangle,
         input.right = Input.ButtonFrame.{}; input.wheel = 0.0
     }
     result.input = Input.Handle(app, input, host.persist)
+    if result.input.link_hovered {
+        unused Cursor.CursorHover(frame, cast(s32)Cursor.CursorShape.CursorClickable)
+    }
     if result.input.wrote > 0 || Input.ModalActive(app) || input.left.down ||
         input.middle.down || input.right.down || input.keyboard.mods != 0 {
         host.fast_poll_until = device.now + 0.25
@@ -291,6 +295,7 @@ Close :: (host: *Host, session_path: string = "") -> bool {
         if host.persist && host.started && host.owns_session && host.app.session_count > 0 {
             saved = Tabs.Save(host.app, session_path)
         }
+        Clipboard.Close()
         State.Dispose(host.app)
     }
     host.* = Host.{}

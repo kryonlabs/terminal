@@ -118,7 +118,8 @@ private modules stay unavailable through package-qualified imports.
 `TERMINAL_PACKAGE_LOCKED=1 make package-test` checks committed Git packages with
 `--locked` after generating the consumer's dependency lock.
 
-`make install` installs the `terminal` command and a desktop launcher named Terminal.
+`make install` installs the `terminal` command, a desktop launcher named Terminal,
+and the Xfce TerminalEmulator helper definition.
 The default `PREFIX` is `~/.local`; `DESTDIR` supports staged packaging.
 `install-test` checks a disposable staged installation.
 

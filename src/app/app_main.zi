@@ -2,13 +2,13 @@
 #scope_module
 Host :: #import "app_host";
 Clipboard :: #import "app_clipboard";
-ImageClipboard :: #import "app_image_clipboard";
 Runtime :: #import "kryon/Raylib";
 View :: #import "app_terminal_view";
 Window :: #import "app_window";
 Launch :: #import "app_launch_options";
 Frames :: #import "kryon/session";
 Frame :: #import "kryon/Frame";
+InputSnapshot :: #import "kryon/frame_snapshot";
 Bytes :: #import "std/byte_text_linux";
 Files :: #import "std/file_linux";
 libc :: #system_library "c";
@@ -44,7 +44,6 @@ Run :: (arguments: []string) -> s32 {
         return Error("Terminal: could not open the graphics window")
     }
     defer Window.Close()
-    Clipboard.image_path=ImageClipboard.Path
     Window.LoadFont(*host.app.config)
     idle := Window.IdleRate(); active := Window.ActiveRate(idle)
     host.burst_ms = Window.BurstMilliseconds()
@@ -90,18 +89,22 @@ Run :: (arguments: []string) -> s32 {
         Window.Begin()
         bounds := Window.Bounds()
         down: [512]s32
+        unused Runtime.RaylibFrameInputBegin(session)
         device := Window.Sample(session, now, down[:])
         if cast(s32)Host.BeginFrame(*host, session, cast(u64)1, bounds, device.focused) != 0 {
+            InputSnapshot.FrameInputEnd(session)
             Window.End()
             return Error("Terminal: could not begin a UI frame")
         }
         result := Host.Draw(*host, session, bounds, device)
         next_tick = View.NextTick(host.app, now)
         if cast(s32)Frame.EndFrame(session) != 0 {
+            InputSnapshot.FrameInputEnd(session)
             Window.End()
             return Error("Terminal: could not draw the UI frame")
         }
-        Window.Apply(result.input)
+        InputSnapshot.FrameInputEnd(session)
+        Window.Apply(result.input, host.app)
         if result.font_changed { Window.LoadFont(*host.app.config) }
         if result.title_changed { Window.Title(Host.Title(*host)) }
         captured: bool

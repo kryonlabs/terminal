@@ -1,39 +1,203 @@
 #scope_module
 State :: #import "app_state";
 Sessions :: #import "app_sessions";
+Session :: #import "app_session";
 Clipboard :: #import "app_clipboard";
 Commands :: #import "app_commands";
+Menu :: #import "app_menu";
+Engine :: #import "terminal";
 Frames :: #import "kryon/session";
-using UI :: #import "kryon/Widgets";
+OpenUri :: #import "kryon/open_uri";
+Dialog :: #import "kryon/FileDialogLinux";
+File :: #import "std/file_linux";
+Text :: #import "std/byte_text_linux";
+CString :: #import "std/c_string";
+#import "kryon/geometry"
+#import "kryon/tree_input"
+#import "kryon/key_input"
+#import "kryon/input_protocol"
+MenuWidget :: #import "kryon/context_menu";
+libc :: #system_library "c";
+Fork :: () -> s32 #foreign libc "fork";
+ExecutePath :: (path: *u8, arguments: **u8) -> s32 #foreign libc "execvp";
+ExitChild :: (status: s32) #foreign libc "_exit";
+ForegroundGroup :: (descriptor: s32) -> s32 #foreign libc "tcgetpgrp";
+SignalProcess :: (pid: s32, number: s32) -> s32 #foreign libc "kill";
 
-PastePrimary :: 2005;
+OpenContextLink :: 3001;
+CopyContextLink :: 3002;
+OpenTerminal :: 3003;
+OpenFileManager :: 3004;
+CopyHtml :: 3005;
+ToggleMenubar :: 3006;
+ToggleFullscreen :: 3007;
+ToggleReadOnly :: 3008;
+SignalMenu :: 3100;
+SignalFirst :: 3110;
+ZoomMenu :: 3200;
+SaveContents :: 3300;
+Preferences :: 3301;
+
+Add :: (items: []MenuWidget.ContextMenuItem, at: *s32, id: s32, label: string,
+    disabled: bool = false, parent: s32 = 0, accelerator: string = "") {
+    items[at.*] = MenuWidget.ContextMenuItem.{.id=id,.label=label,.disabled=disabled,
+        .parent=parent,.accelerator=accelerator}
+    at.* += 1
+}
+Separator :: (items: []MenuWidget.ContextMenuItem, at: *s32, parent: s32 = 0) {
+    items[at.*] = MenuWidget.ContextMenuItem.{.separator=true,.parent=parent}
+    at.* += 1
+}
+Check :: (items: []MenuWidget.ContextMenuItem, at: *s32, id: s32, label: string, checked: bool) {
+    items[at.*] = MenuWidget.ContextMenuItem.{.id=id,.label=label,.checkable=true,.checked=checked}
+    at.* += 1
+}
+CurrentLink :: (app: *State.State) -> string {
+    if app == null { return "" }
+    return Text.TextFromCString(*app.context_link[0])
+}
+IsEmail :: (link: string) -> bool { return link.count > 7 && link[0:7] == "mailto:" }
+
+SpawnTerminal :: (session: *Session.Session) -> bool {
+    if session == null { return false }
+    cwd: [4096]u8; command: [32]u8; option: [32]u8
+    value := Session.CurrentCwd(session, cwd[:])
+    if value == "" || !CString.CopyCString("terminal", command[:]) ||
+        !CString.CopyCString("--working-directory", option[:]) { return false }
+    arguments: [4]*u8
+    arguments[0] = *command[0]; arguments[1] = *option[0]
+    arguments[2] = *cwd[0]; arguments[3] = null
+    process := Fork()
+    if process < 0 { return false }
+    if process == 0 {
+        unused ExecutePath(*command[0], *arguments[0])
+        ExitChild(127)
+    }
+    return true
+}
+
+OpenDirectory :: (session: *Session.Session) -> bool {
+    if session == null { return false }
+    cwd: [4096]u8
+    value := Session.CurrentCwd(session, cwd[:])
+    return value != "" && OpenUri.OpenUri(value)
+}
+
+SendSignal :: (session: *Session.Session, number: s32) -> bool {
+    if session == null || number < 1 || number > 30 { return false }
+    group := ForegroundGroup(session.terminal.fd)
+    if group > 0 && SignalProcess(-group, number) == 0 { return true }
+    return session.terminal.pid > 0 && SignalProcess(-session.terminal.pid, number) == 0
+}
+
+Save :: (session: *Session.Session) -> bool {
+    if session == null { return false }
+    cwd: [4096]u8; path: [4096]u8
+    folder := Session.CurrentCwd(session, cwd[:])
+    patterns: [1]string = .{"*.txt"}
+    props: Dialog.FileDialogProps
+    props.title = "Save Terminal Contents"; props.accept_label = "_Save"
+    props.filename = "terminal.txt"; props.save = true
+    props.filter_name = "Text Files"; props.patterns = patterns[:]; props.folder = folder
+    selected := Dialog.FileDialog(props, path[:])
+    if !selected.available || !selected.accepted { return false }
+    file := File.OpenReplace(Text.TextFromCString(*path[0])); if !file.valid { return false }
+    line: [65536]u8; complete: bool = true
+    count := Engine.terminal_visible_line_count(*session.terminal)
+    for row: 0..count - 1 {
+        Engine.terminal_visible_line(*session.terminal, row, *line[0], 65536)
+        value := Text.TextFromCString(*line[0])
+        if value != "" && File.Write(file,
+            Text.BytesFromPointer(*line[0], cast(u64)value.count)) != value.count {
+            complete = false; break
+        }
+        if Engine.terminal_visible_line_wrapped(*session.terminal, row) == 0 {
+            newline: [1]u8 = .{10}
+            if File.Write(file, newline[:]) != 1 { complete = false; break }
+        }
+    }
+    if !File.CloseFile(file) { complete = false }
+    return complete
+}
+
+Activate :: (app: *State.State, session: *Session.Session, id: s32, persist: bool) {
+    link := CurrentLink(app)
+    if id == OpenContextLink { unused OpenUri.OpenUri(link) }
+    else if id == CopyContextLink {
+        value := link; if IsEmail(link) { value = link[7:] }
+        unused Clipboard.CopyText(session, value)
+    }
+    else if id == OpenTerminal { unused SpawnTerminal(session) }
+    else if id == OpenFileManager { unused OpenDirectory(session) }
+    else if id == CopyHtml { unused Clipboard.CopySelectionHtml(app) }
+    else if id == ToggleMenubar { app.launch.show_menubar = !app.launch.show_menubar }
+    else if id == ToggleFullscreen {
+        app.launch.fullscreen = !app.launch.fullscreen; app.fullscreen_toggle_requested = true
+    }
+    else if id == ToggleReadOnly { session.read_only = !session.read_only }
+    else if id > SignalFirst && id <= SignalFirst + 30 { unused SendSignal(session, id - SignalFirst) }
+    else if id == SaveContents { unused Save(session) }
+    else if id == Preferences { Menu.OpenPreferences(app) }
+    else if id > 0 { Commands.Execute(app, cast(Commands.Command)id, persist) }
+}
 
 #scope_export
+BuildItems :: (app: *State.State, active: *Session.Session,
+    items: []MenuWidget.ContextMenuItem) -> s32 {
+    if app == null || active == null || items.count < 57 { return 0 }
+    at: s32
+    link := CurrentLink(app)
+    if link != "" {
+        Add(items[:], *at, OpenContextLink, ifx IsEmail(link) then "Compose Email" else "Open Link")
+        Add(items[:], *at, CopyContextLink, ifx IsEmail(link) then "Copy Email Address" else "Copy Link Address")
+        Separator(items[:], *at)
+    }
+    Add(items[:], *at, cast(s32)Commands.Command.NewTab, "Open Tab")
+    Add(items[:], *at, OpenTerminal, "Open Terminal")
+    Add(items[:], *at, OpenFileManager, "Open File Manager Here")
+    Separator(items[:], *at)
+    Add(items[:], *at, cast(s32)Commands.Command.Copy, "Copy", app.selection.active == 0)
+    Add(items[:], *at, CopyHtml, "Copy as HTML", app.selection.active == 0)
+    Separator(items[:], *at)
+    Add(items[:], *at, cast(s32)Commands.Command.Paste, "Paste")
+    Add(items[:], *at, cast(s32)Commands.Command.PastePrimary, "Paste Selection", !Clipboard.PrimaryAvailable())
+    Separator(items[:], *at)
+    Check(items[:], *at, ToggleMenubar, "Show Menubar", app.launch.show_menubar)
+    Check(items[:], *at, ToggleFullscreen, "Fullscreen", app.launch.fullscreen)
+    Check(items[:], *at, ToggleReadOnly, "Read-Only", active.read_only)
+    Separator(items[:], *at)
+    Add(items[:], *at, SignalMenu, "Send Signal")
+    Separator(items[:], *at)
+    Add(items[:], *at, ZoomMenu, "Zoom")
+    Separator(items[:], *at)
+    Add(items[:], *at, SaveContents, "Save Contents...")
+    Separator(items[:], *at)
+    Add(items[:], *at, Preferences, "Preferences...")
+    signals: [30]string = .{"1 - HUP","2 - INT","3 - QUIT","4 - ILL","5 - TRAP","6 - ABRT",
+        "7 - BUS","8 - FPE","9 - KILL","10 - USR1","11 - SEGV","12 - USR2","13 - PIPE",
+        "14 - ALRM","15 - TERM","16 - STKFLT","17 - CHLD","18 - CONT","19 - STOP",
+        "20 - TSTP","21 - TTIN","22 - TTOU","23 - URG","24 - XCPU","25 - XFSZ",
+        "26 - VTALRM","27 - PROF","28 - WINCH","29 - IO","30 - PWR"}
+    for number: 1..30 { Add(items[:], *at, SignalFirst + cast(s32)number, signals[number - 1], false, SignalMenu) }
+    Add(items[:], *at, cast(s32)Commands.Command.FontIncrease, "Zoom In", false, ZoomMenu, "Ctrl++")
+    Add(items[:], *at, cast(s32)Commands.Command.FontDecrease, "Zoom Out", false, ZoomMenu, "Ctrl+-")
+    Add(items[:], *at, cast(s32)Commands.Command.FontReset, "Normal Size", false, ZoomMenu, "Ctrl+0")
+    return at
+}
+
 Draw :: (frame: Frames.Session, app: *State.State, persist: bool = true) {
     if app == null || !app.context_menu_open { return }
     active := Sessions.Active(app)
     if active == null { app.context_menu_open = false; return }
-    items: [11]ContextMenuItem
-    items[0] = .{cast(s32)Commands.Command.NewTab, "New Tab    Ctrl+Shift+T", false, false}
-    items[1] = .{cast(s32)Commands.Command.CloseTab, "Close Tab    Ctrl+Shift+W", app.session_count <= 1, false}
-    items[2].separator = true
-    items[3] = .{cast(s32)Commands.Command.Copy, "Copy    Ctrl+Shift+C", app.selection.active == 0, false}
-    items[4] = .{cast(s32)Commands.Command.Paste, "Paste    Ctrl+Shift+V", false, false}
-    items[5] = .{PastePrimary, "Paste Primary", !Clipboard.PrimaryAvailable(), false}
-    items[6] = .{cast(s32)Commands.Command.SelectAll, "Select All    Ctrl+Shift+A", false, false}
-    items[7].separator = true
-    items[8] = .{cast(s32)Commands.Command.Find, "Find    Ctrl+Shift+F", false, false}
-    items[9] = .{cast(s32)Commands.Command.FindNext, "Find Next    Ctrl+Shift+G", false, false}
-    items[10] = .{cast(s32)Commands.Command.FindPrevious, "Find Previous    Ctrl+Shift+B", false, false}
-    props: ContextMenuProps
+    items: [57]MenuWidget.ContextMenuItem
+    count := BuildItems(app, active, items[:])
+    if count <= 0 { app.context_menu_open = false; return }
+    props: MenuWidget.Props
     props.key = cast(u64)1300; props.open = app.context_menu_open
     props.x = cast(float32)app.context_menu_x; props.y = cast(float32)app.context_menu_y
-    props.escape = KeyboardTake(frame) == KeyEscape
-    // An overlay owns this frame's text, including keys it does not handle.
-    ignored: [128]u8
-    TypedTextTake(frame, ignored[:])
-    result := ContextMenu(frame, props, items[:])
+    props.escape = KeyboardTake(frame) == KeyEscape; props.scale = app.scale
+    ignored: [128]u8; TypedTextTake(frame, ignored[:])
+    result := MenuWidget.Draw(frame, props, items[0:count])
     app.context_menu_open = result.open
-    if result.activated_id == PastePrimary { Clipboard.PastePrimary(app, active) }
-    else if result.activated_id > 0 { Commands.Execute(app, cast(Commands.Command)result.activated_id, persist) }
+    if result.activated_id > 0 { Activate(app, active, result.activated_id, persist) }
 }

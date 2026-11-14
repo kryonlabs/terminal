@@ -3,7 +3,7 @@ Host :: #import "terminal_clipboard_host";
 #import "terminal_pane_selection"
 
 SelectionFixture :: struct {
-    lines: [4][64]u8
+    lines: [4][256]u8
     wrapped: [4]s32
     count: s32
 }
@@ -56,7 +56,7 @@ main :: () -> s32 {
     InitClipboardBuffer(*clipboard, null)
     Host.HostClipboardReset("")
     selection: TerminalPaneSelection
-    text: [256]u8
+    text: [512]u8
     match: TerminalPaneSearchMatch
     controller: TerminalPaneSearchController
     scroll_offset: s32 = 99
@@ -146,5 +146,21 @@ main :: () -> s32 {
     if TerminalPaneSearchLines(FixtureLineText, cast(*void)*fixture, 4,
             *text[0], 0, 0, -1, 1, *match) != 1 || match.row != 3 ||
        match.col != 6 { return 16 }
+    oauth := "https://auth.openai.com/oauth/authorize?response_type=code&client_id=app&redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback&scope=openid&state=state-value-0123456789abcdef&codex_cli_simplified_flow=true"
+    Fill(*fixture.lines[0][0], oauth[0:56])
+    Fill(*fixture.lines[1][0], oauth[56:112])
+    Fill(*fixture.lines[2][0], oauth[112:168])
+    Fill(*fixture.lines[3][0], oauth[168:])
+    fixture.wrapped[0] = 1; fixture.wrapped[1] = 1; fixture.wrapped[2] = 1
+    TerminalPaneSelectionSetRange(*selection, TERMINAL_PANE_SELECTION_CHAR,
+        0, 0, 0, 3, cast(s32)oauth.count - 168)
+    if TerminalPaneSelectionCollectText(*selection, FixtureLineText,
+            FixtureWrapped, cast(*void)*fixture, *text[0], 512) != 1 ||
+       !Same(*text[0], oauth) { return 17 }
+    fixture.wrapped[1] = 0
+    hard := "https://auth.openai.com/oauth/authorize?response_type=code&client_id=app&redirect_uri=http%3A%2F%2Flocalhost%3A1\n455%2Fauth%2Fcallback&scope=openid&state=state-value-0123456789abcdef&codex_cli_simplified_flow=true"
+    if TerminalPaneSelectionCollectText(*selection, FixtureLineText,
+            FixtureWrapped, cast(*void)*fixture, *text[0], 512) != 1 ||
+       !Same(*text[0], hard) { return 18 }
     return 0
 }

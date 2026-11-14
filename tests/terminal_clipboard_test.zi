@@ -162,6 +162,11 @@ Cases :: () -> s32 {
     Reset()
     if WriteClipboardSourcePaste(*clipboard, CLIPBOARD_SOURCE_PRIMARY_OR_CLIPBOARD, 0, WriteInput, null) != 1 ||
        Captured() != "primary" { return 26 }
+    Host.HostPrimaryReset("external primary")
+    Reset()
+    if WriteClipboardSourcePaste(*clipboard, CLIPBOARD_SOURCE_PRIMARY, 0, WriteInput, null) != 1 ||
+       Captured() != "external primary" ||
+       !Query("p;?", "\x1b]52;p;ZXh0ZXJuYWwgcHJpbWFyeQ==\a") { return 32 }
     SetPrimarySelectionFromText(null)
     Reset()
     if WriteClipboardSourcePaste(*clipboard, CLIPBOARD_SOURCE_PRIMARY_OR_CLIPBOARD, 0, WriteInput, null) != 1 ||

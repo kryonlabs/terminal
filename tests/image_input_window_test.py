@@ -144,6 +144,10 @@ def main():
                 time.sleep(.2)
                 probe = subprocess.run(['xclip','-selection','clipboard','-target','image/png','-out'],env=env,capture_output=True,timeout=3)
                 assert probe.stdout==png, (probe.returncode,probe.stderr)
+                image_before = incoming.stat().st_size
+                xdo('keydown','ctrl','shift'); time.sleep(.1); xdo('key','v'); time.sleep(.2); xdo('keyup','shift','ctrl')
+                time.sleep(.2)
+                assert incoming.stat().st_size == image_before, 'Ctrl+Shift+V must never paste an image'
                 xdo('keydown','ctrl'); time.sleep(.1); xdo('key','v'); time.sleep(.2); xdo('keyup','ctrl')
                 data = wait(lambda: incoming.read_bytes(),'PNG paste never reached the PTY')
                 assert b'\x16' not in data, data
@@ -155,8 +159,10 @@ def main():
                                         env=env,stdin=subprocess.PIPE,stdout=log,stderr=log)
                 clips.append(clip); clip.stdin.write(text.encode()); clip.stdin.close(); time.sleep(.2)
                 xdo('keydown','ctrl'); time.sleep(.1); xdo('key','v'); time.sleep(.2); xdo('keyup','ctrl')
-                time.sleep(.2)
-                assert incoming.stat().st_size==before, 'Ctrl+V must not paste text'
+                data = wait(lambda: incoming.read_bytes() if incoming.stat().st_size>before else None,
+                            'Ctrl+V text fallback lost text')
+                assert data[before:].replace(b'\x1b[200~',b'').replace(b'\x1b[201~',b'')==text.encode()
+                before = len(data)
                 xdo('keydown','ctrl','shift'); time.sleep(.1); xdo('key','v'); time.sleep(.2); xdo('keyup','shift','ctrl')
                 data = wait(lambda: incoming.read_bytes() if incoming.stat().st_size>before else None,'Shift paste lost text')
                 assert data[before:].replace(b'\x1b[200~',b'').replace(b'\x1b[201~',b'')==text.encode()
@@ -165,7 +171,7 @@ def main():
                 dropped = incoming.read_bytes()[before:]
                 assert shlex.split(dropped.replace(b'\x1b[200~',b'').replace(b'\x1b[201~',b'').decode()) == [str(image)], dropped
                 assert b'\r' not in dropped and b'\n' not in dropped, 'Drop submitted a command'
-                print('Local native image input: Ctrl+V pastes PNG, Ctrl+Shift+V pastes text, Xdnd preserves the path; no command submitted')
+                print('Local native image input: Ctrl+V pastes PNG or text fallback, Ctrl+Shift+V stays text-only, Xdnd preserves the path; no command submitted')
                 close_window(window,app.pid,env); app.wait(timeout=5)
                 assert app.returncode==0, (root/'window.log').read_text()
             except BaseException:

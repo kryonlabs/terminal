@@ -19,7 +19,7 @@ for form in source saved; do
     output=$work/$form-c
     ZIRAN="$ziran" RAYLIB_A="$archive" sh scripts/build.sh c "$output" "$input"
     env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
-        LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
+        HARMONY_DESKTOP_RECOVERY=0 LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
         env TERMINAL_PRIVATE_XVFB=1 python3 tests/standalone_window_test.py "$output/bin/terminal"
 done
 echo 'Terminal executable source and saved IR passed real C window and child-process checks'

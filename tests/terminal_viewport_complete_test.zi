@@ -1,6 +1,7 @@
 // Complete physical-page projection retains every meaningful source cell,
 // including history created only by narrowing or shortening the viewer.
 #import "terminal"
+ClipboardHost :: #import "terminal_clipboard_host";
 Text :: #import "std/byte_text_linux"
 libc :: #system_library "c";
 CompareRaw :: (a: *void, b: *void, count: usize) -> s32 #foreign libc "memcmp";

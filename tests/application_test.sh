@@ -11,7 +11,7 @@ case "$suite" in
     *) echo "Unknown Terminal application suite: $suite" >&2; exit 2 ;;
 esac
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS SESSION_MANAGER ENV BASH_ENV
-export YUE_DESKTOP_RECOVERY=0
+export HARMONY_DESKTOP_RECOVERY=0
 ziran=${ZIRAN:-"$root/scripts/ziran.sh"}
 lock_flags=
 if test ! -f ziran.local.toml; then lock_flags=--locked; fi
@@ -20,6 +20,7 @@ work=$(mktemp -d "$root/build/ziran/$suite-test.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 # Persistence fixtures must never read or replace the owner's saved tabs.
 export XDG_CONFIG_HOME="$work/config" XDG_STATE_HOME="$work/state"
+export KRYON_TEST_OPEN_URI_CAPTURE="$work/open-uri"
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME/terminal"
 printf 'active=0\n' > "$work/session.before"
 cp "$work/session.before" "$XDG_STATE_HOME/terminal/session"
@@ -37,7 +38,10 @@ for form in source saved; do
     input=$source
     if test "$form" = saved; then input=$work/ir/$module.zir; fi
     "$ziran" build --project $lock_flags --target=c --entry "$entry" \
-        --exe -o "$work/$form-c" "$input"
+        --no-main -o "$work/$form-c" "$input"
+    "${CC:-cc}" -std=c11 -O1 -I"$work/$form-c" "$work/$form-c"/*.c \
+        $(pkg-config --libs gtk+-3.0 x11 xcb) -lutil -ldl -lpthread -lm \
+        -o "$work/$form-c/$module"
     (cd "$work/$form-c" && TERMINAL_TEST_SHELL="$work/shell" timeout --kill-after=2s 15s "./$module")
     cmp "$work/session.before" "$XDG_STATE_HOME/terminal/session"
 done

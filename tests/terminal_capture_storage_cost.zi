@@ -1,6 +1,7 @@
 // Balanced current-engine comparison; both modes use identical capture and
 // reflow code. Only detached-storage reset differs, with no extra cache.
 Engine :: #import "terminal";
+ClipboardHost :: #import "terminal_clipboard_host";
 Cost :: #import "terminal_capture_cost_probe";
 libc :: #system_library "c";
 ReleaseCorpus :: (bytes: *void) #foreign libc "free";

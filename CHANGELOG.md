@@ -4,6 +4,22 @@
 
 - Keep captured terminal rows in their own colors when reflowing or resizing,
   so a colored diff or status row cannot flood later blank rows.
+- Consume Kryon's ordered per-session Raylib key and text delivery.
+- Build against Kryon's package-qualified widget imports (`kryon/menu`,
+  `kryon/context_menu`, `kryon/tab_bar`, `kryon/text_field` and others) now that
+  the `Widgets` facade and `*_props` modules are gone.
+- Use the platform PRIMARY selection for selected text, middle-click,
+  Shift+Insert, and Paste Selection. Ctrl+V prefers a clipboard PNG and falls
+  back to text, while Ctrl+Shift+V and the Paste menu action stay text-only.
+- Match the xfce4-terminal 1.1.4 right-click menu, including link and email
+  actions, Copy as HTML, open/save actions, checked state, signals, zoom
+  accelerators, and preferences. Right-click preserves the selection and does
+  not copy until a copy action is chosen.
+- Alt-click also opens email addresses, and links open through Kryon in both
+  standalone and embedded Terminal windows.
+- `make install` also installs the Xfce TerminalEmulator helper, so Thunar's
+  Open Terminal Here and `exo-open --launch TerminalEmulator` start this
+  terminal in the selected folder, and Exo launch commands run through `-x`.
 
 ## [0.1.0] - 2026-11-13
 

@@ -1,4 +1,4 @@
-"""Right-click copy of a dragged selection in the real window on private Xvfb."""
+"""PRIMARY publication and xfce-style selection menu on private Xvfb."""
 import os
 from pathlib import Path
 import shlex
@@ -10,7 +10,13 @@ import time
 
 from standalone_window_test import close_window
 
-COLUMNS, ROWS, TEXT_ROW = 40, 8, 3
+# The 21-row xfce4-terminal menu is taller than this window. Kryon keeps menus
+# inside the window, pinned to its top, so the window needs 10 rows for the
+# Copy row (about 160 units down) to be reachable.
+COLUMNS, ROWS, TEXT_ROW = 56, 10, 4
+OAUTH = ('https://auth.openai.com/oauth/authorize?response_type=code&client_id=app&'
+         'redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback&scope=openid&'
+         'state=state-value-0123456789abcdef&codex_cli_simplified_flow=true')
 
 
 def wait(predicate, message, seconds=8):
@@ -44,7 +50,7 @@ def selection(env, name):
 def main():
     assert os.environ.get('TERMINAL_PRIVATE_XVFB') == '1'
     assert os.environ['DISPLAY'].startswith(':')
-    assert os.environ.get('YUE_DESKTOP_RECOVERY') == '0'
+    assert os.environ.get('HARMONY_DESKTOP_RECOVERY') == '0'
     binary = str(Path(sys.argv[1]).resolve())
     Path('build/ziran').mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='terminal-selection-copy-', dir='build/ziran') as directory:
@@ -53,7 +59,7 @@ def main():
         shell.write_text('#!/bin/sh\nexec /bin/sh -c "$2"\n'); shell.chmod(0o700)
         child = root / 'child.py'; incoming = root / 'input'
         child.write_text('import os,tty\ntty.setraw(0)\nos.write(1,' + repr(
-            b'\r\n' * TEXT_ROW + b'alpha beta gamma\r\n') + ')\n'
+            OAUTH.encode() + b'\r\nalpha beta gamma\r\n') + ')\n'
             'with open(' + repr(str(incoming)) + ', "wb", buffering=0) as log:\n'
             ' while True:\n  data=os.read(0,1024)\n  if not data: break\n  log.write(data)\n')
         env = dict(os.environ, XDG_CONFIG_HOME=str(root / 'config'), XDG_STATE_HOME=str(root / 'state'),
@@ -66,6 +72,7 @@ def main():
             app = subprocess.Popen([binary, '--hide-menubar', '--hide-toolbar', '--geometry', f'{COLUMNS}x{ROWS}',
                                     '--shell', str(shell), '-e', 'python3 ' + shlex.quote(str(child))],
                                    env=env, stdout=log, stderr=log)
+            owners = []
             try:
                 def find():
                     result = subprocess.run(['xdotool', 'search', '--onlyvisible', '--pid', str(app.pid)],
@@ -74,7 +81,7 @@ def main():
                 window = wait(find, 'Terminal window and raw child')
                 assert int(xdo('getwindowpid', window)) == app.pid
                 geometry = dict(line.split('=', 1) for line in xdo('getwindowgeometry', '--shell', window).splitlines())
-                cell = int(geometry['WIDTH']) / COLUMNS; line = int(geometry['HEIGHT']) / ROWS
+                width = int(geometry['WIDTH']); cell = width / COLUMNS; line = int(geometry['HEIGHT']) / ROWS
                 y = int(line * (TEXT_ROW + .5))
                 xdo('windowfocus', '--sync', window)
                 xdo('mousemove', '--window', window, int(cell * 20), int(line * 6.5))
@@ -84,7 +91,55 @@ def main():
                     first = window_rows(window, env, 0, TEXT_ROW)
                     return first if first == window_rows(window, env, 0, TEXT_ROW) else None
                 baseline = wait(stable, 'Stable text rows')
-                assert selection(env, 'clipboard') != 'beta'
+                owner = subprocess.Popen(['xclip','-quiet','-selection','clipboard','-in'],env=env,
+                                         stdin=subprocess.PIPE,stdout=log,stderr=log)
+                owners.append(owner); owner.stdin.write(b'clipboard sentinel'); owner.stdin.close(); time.sleep(.2)
+
+                # Select all four visual rows of one logical OAuth line. At 56
+                # columns the wrap splits 1455 and later the state value.
+                xdo('mousemove', '--window', window, int(cell * .5), int(line * .5))
+                xdo('mousedown', '1')
+                for row, column in ((0, 55.5), (1, 55.5), (2, 55.5), (3, 43.5)):
+                    time.sleep(.06)
+                    xdo('mousemove', '--window', window, int(cell * column), int(line * (row + .5)))
+                time.sleep(.1); xdo('mouseup', '1')
+                wait(lambda: selection(env, 'primary') == OAUTH,
+                     lambda: f'Wrapped OAuth PRIMARY differs: {selection(env, "primary")!r}')
+
+                xdo('keydown', 'Control_L'); xdo('keydown', 'Shift_L'); xdo('key', 'c')
+                xdo('keyup', 'Shift_L'); xdo('keyup', 'Control_L')
+                wait(lambda: selection(env, 'clipboard') == OAUTH,
+                     'Keyboard copy did not preserve the exact wrapped OAuth URL')
+
+                # Copy Link Address is row two in the link-aware menu. Each menu
+                # copy starts from a fresh owner, so its check waits for that
+                # copy instead of passing on the previous one.
+                owner = subprocess.Popen(['xclip','-quiet','-selection','clipboard','-in'],env=env,
+                                         stdin=subprocess.PIPE,stdout=log,stderr=log)
+                owners.append(owner); owner.stdin.write(b'link sentinel'); owner.stdin.close(); time.sleep(.2)
+                assert selection(env, 'clipboard') == 'link sentinel'
+                xdo('mousemove', '--window', window, int(cell * 2.5), int(line * 2.5))
+                xdo('mousedown', '3'); time.sleep(.1); xdo('mouseup', '3'); time.sleep(.2)
+                xdo('mousemove', '--window', window, int(cell * 2.5) + 60, 43)
+                xdo('mousedown', '1'); time.sleep(.12); xdo('mouseup', '1')
+                wait(lambda: selection(env, 'clipboard') == OAUTH,
+                     'Context-menu Copy Link changed the wrapped OAuth URL')
+
+                # Copy is the first row after the link actions and open rows.
+                owner = subprocess.Popen(['xclip','-quiet','-selection','clipboard','-in'],env=env,
+                                         stdin=subprocess.PIPE,stdout=log,stderr=log)
+                owners.append(owner); owner.stdin.write(b'copy sentinel'); owner.stdin.close(); time.sleep(.2)
+                assert selection(env, 'clipboard') == 'copy sentinel'
+                xdo('mousemove', '--window', window, int(cell * 2.5), int(line * 2.5))
+                xdo('mousedown', '3'); time.sleep(.1); xdo('mouseup', '3'); time.sleep(.2)
+                xdo('mousemove', '--window', window, int(cell * 2.5) + 60, 160)
+                xdo('mousedown', '1'); time.sleep(.12); xdo('mouseup', '1')
+                wait(lambda: selection(env, 'clipboard') == OAUTH,
+                     'Context-menu Copy did not preserve the exact wrapped OAuth selection')
+
+                owner = subprocess.Popen(['xclip','-quiet','-selection','clipboard','-in'],env=env,
+                                         stdin=subprocess.PIPE,stdout=log,stderr=log)
+                owners.append(owner); owner.stdin.write(b'clipboard sentinel'); owner.stdin.close(); time.sleep(.2)
 
                 xdo('mousemove', '--window', window, int(cell * 6.5), y); time.sleep(.1)
                 xdo('mousedown', '1')
@@ -92,23 +147,74 @@ def main():
                     time.sleep(.05); xdo('mousemove', '--window', window, int(cell * (column + .5)), y)
                 time.sleep(.1); xdo('mouseup', '1')
                 wait(lambda: window_rows(window, env, 0, TEXT_ROW) != baseline, 'Dragged selection is highlighted')
-                assert selection(env, 'clipboard') != 'beta', 'Selecting alone must not replace the clipboard'
+                wait(lambda: selection(env, 'primary') == 'beta',
+                     lambda: f'Selection did not publish PRIMARY: {selection(env, "primary")!r}')
+                assert selection(env, 'clipboard') == 'clipboard sentinel', 'Selecting alone replaced CLIPBOARD'
 
                 xdo('mousedown', '3'); time.sleep(.1); xdo('mouseup', '3')
-                started = time.monotonic()
+                time.sleep(.25)
+                assert selection(env, 'clipboard') == 'clipboard sentinel', 'Right-click copied without a menu action'
+                assert selection(env, 'primary') == 'beta', 'Right-click cleared PRIMARY selection'
+                # The menu is taller than this window and is clamped to its
+                # top. Copy is the first row after three open actions.
+                xdo('mousemove', '--window', window, int(cell * 9.5) + 60, 104)
+                xdo('mousedown', '1'); time.sleep(.12); xdo('mouseup', '1')
                 wait(lambda: selection(env, 'clipboard') == 'beta',
-                     lambda: f'Right-click copies exactly beta, got {selection(env, "clipboard")!r}', 2)
-                wait(lambda: window_rows(window, env, 0, TEXT_ROW) == baseline,
-                     'Right-click clears the visible selection without opening a menu', 2)
-                cleared = time.monotonic() - started
-                time.sleep(.6)
-                assert window_rows(window, env, 0, TEXT_ROW) == baseline, 'Selection stays cleared'
-                assert incoming.read_bytes() == b'', 'Right-click copy must not write to the child'
+                     lambda: f'Menu Copy did not copy exactly beta: {selection(env, "clipboard")!r}', 2)
+                assert selection(env, 'primary') == 'beta', 'Menu Copy cleared selection PRIMARY'
+
+                # Re-select before testing the independent HTML action; a menu
+                # activation must not make that action depend on stale UI state.
+                time.sleep(.5)
+                owner = subprocess.Popen(['xclip','-quiet','-selection','primary','-in'],env=env,
+                                         stdin=subprocess.PIPE,stdout=log,stderr=log)
+                owners.append(owner); owner.stdin.write(b'primary sentinel'); owner.stdin.close(); time.sleep(.2)
+                assert selection(env, 'primary') == 'primary sentinel'
+                xdo('mousemove', '--window', window, int(cell * 6.5), y)
+                xdo('mousedown', '1')
+                for column in (7, 8, 9):
+                    time.sleep(.05); xdo('mousemove', '--window', window, int(cell * (column + .5)), y)
+                time.sleep(.1); xdo('mouseup', '1')
+                wait(lambda: selection(env, 'primary') == 'beta', 'Second selection did not publish PRIMARY')
+
+                # Copy as HTML owns both safe plain text and escaped HTML.
+                xdo('mousemove', '--window', window, int(cell * 8), y)
+                xdo('mousedown', '3'); time.sleep(.1); xdo('mouseup', '3'); time.sleep(.2)
+                xdo('mousemove', '--window', window, int(cell * 8) + 60, 130)
+                xdo('mousedown', '1'); time.sleep(.12); xdo('mouseup', '1')
+                def clipboard_html():
+                    result = subprocess.run(['xclip','-selection','clipboard','-target','text/html','-out'],
+                                            env=env,capture_output=True,timeout=5)
+                    return result.stdout if result.returncode == 0 else None
+                html = wait(clipboard_html, 'Copy as HTML did not offer text/html')
+                assert html == b'<pre>beta</pre>', html
+                assert selection(env, 'clipboard') == 'beta'
+
+                # An external PRIMARY owner is used by middle-click and
+                # Shift+Insert; neither falls back to CLIPBOARD.
+                owner = subprocess.Popen(['xclip','-quiet','-selection','primary','-in'],env=env,
+                                         stdin=subprocess.PIPE,stdout=log,stderr=log)
+                owners.append(owner); owner.stdin.write(b'external primary'); owner.stdin.close(); time.sleep(.2)
+                assert selection(env, 'primary') == 'external primary'
+                before = incoming.stat().st_size
+                xdo('mousemove', '--window', window, int(cell * 20), int(line * 6.5))
+                xdo('mousedown', '2'); time.sleep(.12); xdo('mouseup', '2')
+                data = wait(lambda: incoming.read_bytes() if incoming.stat().st_size > before else None,
+                            'Middle-click did not paste external PRIMARY')
+                assert data[before:].replace(b'\x1b[200~',b'').replace(b'\x1b[201~',b'') == b'external primary'
+                before = len(data)
+                xdo('keydown','shift'); xdo('key','Insert'); xdo('keyup','shift')
+                data = wait(lambda: incoming.read_bytes() if incoming.stat().st_size > before else None,
+                            'Shift+Insert did not paste PRIMARY')
+                assert data[before:].replace(b'\x1b[200~',b'').replace(b'\x1b[201~',b'') == b'external primary'
                 close_window(window, app.pid, env); app.wait(timeout=5)
             finally:
+                for owner in owners:
+                    if owner.poll() is None: owner.terminate()
+                    owner.wait(timeout=5)
                 if app.poll() is None:
                     app.terminate(); app.wait(timeout=5)
-        print(f'Terminal right-click copied the dragged selection and cleared it in {cleared:.2f}s on private Xvfb')
+        print('Terminal publishes PRIMARY, keeps selection on right-click, serves plain+HTML menu copies, and pastes external PRIMARY only')
 
 
 if __name__ == '__main__':

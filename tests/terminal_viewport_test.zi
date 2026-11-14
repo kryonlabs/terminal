@@ -1,6 +1,7 @@
 // Compare the read-only projection with the complete established resize,
 // including every retained history cell, rather than checking index internals.
 #import "terminal";
+ClipboardHost :: #import "terminal_clipboard_host";
 Capture :: #import "terminal_capture_test";
 Text :: #import "std/byte_text_linux";
 libc :: #system_library "c";

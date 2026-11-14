@@ -1,0 +1,74 @@
+Menu :: #import "app_context_menu";
+State :: #import "app_state";
+Session :: #import "app_session";
+Commands :: #import "app_commands";
+ClipboardHost :: #import "terminal_clipboard_host";
+MenuWidget :: #import "kryon/context_menu";
+
+Find :: (items: []MenuWidget.ContextMenuItem, label: string, parent: s32 = 0) -> s32 {
+    for index: 0..cast(s32)items.count - 1 {
+        if items[index].parent == parent && items[index].label == label { return index }
+    }
+    return -1
+}
+
+RootMatches :: (items: []MenuWidget.ContextMenuItem, expected: []string) -> bool {
+    at: s32
+    for item: items {
+        if item.parent != 0 { continue }
+        if at >= cast(s32)expected.count { return false }
+        if expected[at] == "---" {
+            if !item.separator { return false }
+        } else if item.separator || item.label != expected[at] { return false }
+        at += 1
+    }
+    return at == cast(s32)expected.count
+}
+
+#program_export
+main :: () -> s32 {
+    app := State.Allocate(); if app == null { return 1 }
+    defer State.Dispose(app)
+    app.session_count = 1; app.active = 0; app.sessions[0].used = true
+    items: [57]MenuWidget.ContextMenuItem
+    count := Menu.BuildItems(app, *app.sessions[0], items[:])
+    root: [21]string = .{"Open Tab","Open Terminal","Open File Manager Here","---",
+        "Copy","Copy as HTML","---","Paste","Paste Selection","---",
+        "Show Menubar","Fullscreen","Read-Only","---","Send Signal","---","Zoom","---",
+        "Save Contents...","---","Preferences..."}
+    if count != 54 || !RootMatches(items[0:count], root[:]) { return 2 }
+    copy := Find(items[0:count], "Copy"); html := Find(items[0:count], "Copy as HTML")
+    paste_primary := Find(items[0:count], "Paste Selection")
+    if copy < 0 || html < 0 || paste_primary < 0 || !items[copy].disabled || !items[html].disabled ||
+        !items[paste_primary].disabled { return 3 }
+    menubar := Find(items[0:count], "Show Menubar")
+    fullscreen := Find(items[0:count], "Fullscreen")
+    readonly := Find(items[0:count], "Read-Only")
+    if menubar < 0 || fullscreen < 0 || readonly < 0 || !items[menubar].checkable ||
+        !items[menubar].checked || !items[fullscreen].checkable || items[fullscreen].checked ||
+        !items[readonly].checkable || items[readonly].checked { return 4 }
+    signals := Find(items[0:count], "Send Signal"); zoom := Find(items[0:count], "Zoom")
+    if signals < 0 || zoom < 0 || Find(items[0:count], "1 - HUP", items[signals].id) < 0 ||
+        Find(items[0:count], "30 - PWR", items[signals].id) < 0 { return 5 }
+    zoom_in := Find(items[0:count], "Zoom In", items[zoom].id)
+    zoom_out := Find(items[0:count], "Zoom Out", items[zoom].id)
+    normal := Find(items[0:count], "Normal Size", items[zoom].id)
+    if zoom_in < 0 || zoom_out < 0 || normal < 0 || items[zoom_in].accelerator != "Ctrl++" ||
+        items[zoom_out].accelerator != "Ctrl+-" || items[normal].accelerator != "Ctrl+0" { return 6 }
+
+    Session.CopyText(app.context_link[:], "mailto:person@example.org")
+    app.selection.active = 1; app.launch.fullscreen = true
+    active := *app.sessions[0]
+    active.read_only = true
+    count = Menu.BuildItems(app, active, items[:])
+    dynamic: [24]string = .{"Compose Email","Copy Email Address","---","Open Tab","Open Terminal",
+        "Open File Manager Here","---","Copy","Copy as HTML","---","Paste","Paste Selection","---",
+        "Show Menubar","Fullscreen","Read-Only","---","Send Signal","---","Zoom","---",
+        "Save Contents...","---","Preferences..."}
+    if count != 57 || !RootMatches(items[:], dynamic[:]) { return 7 }
+    copy = Find(items[:], "Copy"); html = Find(items[:], "Copy as HTML")
+    fullscreen = Find(items[:], "Fullscreen"); readonly = Find(items[:], "Read-Only")
+    if items[copy].disabled || items[html].disabled || !items[fullscreen].checked ||
+        !items[readonly].checked { return 8 }
+    return 0
+}

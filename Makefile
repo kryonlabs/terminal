@@ -8,6 +8,7 @@ BUILD_DIR ?= $(BUILD_ROOT)/linux-$(shell uname -m)
 PREFIX ?= $(HOME)/.local
 BINDIR ?= $(PREFIX)/bin
 APPDIR ?= $(PREFIX)/share/applications
+HELPERDIR ?= $(PREFIX)/share/xfce4/helpers
 INSTALL ?= install
 APP := $(BUILD_DIR)/bin/terminal
 SOURCES := $(wildcard src/*.zi src/app/*.zi src/engine/*.zi src/terminal_pane/*.zi)
@@ -30,7 +31,7 @@ run: $(APP)
 
 standalone-window-test: $(APP)
 	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
-		LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
+		HARMONY_DESKTOP_RECOVERY=0 LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
 		env TERMINAL_PRIVATE_XVFB=1 python3 tests/standalone_window_test.py "$(APP)"
 
 .PHONY: image-input-window-test
@@ -42,25 +43,36 @@ image-input-window-test: $(APP)
 .PHONY: link-window-test
 link-window-test: $(APP)
 	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
-		YUE_DESKTOP_RECOVERY=0 LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
+		HARMONY_DESKTOP_RECOVERY=0 LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
 		env TERMINAL_PRIVATE_XVFB=1 python3 tests/link_window_test.py "$(APP)"
 
 .PHONY: selection-copy-window-test
 selection-copy-window-test: $(APP)
 	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
-		YUE_DESKTOP_RECOVERY=0 LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
+		HARMONY_DESKTOP_RECOVERY=0 LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
 		env TERMINAL_PRIVATE_XVFB=1 python3 tests/selection_copy_window_test.py "$(APP)"
+
+.PHONY: context-menu-window-test
+context-menu-window-test: $(APP)
+	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
+		HARMONY_DESKTOP_RECOVERY=0 LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1280x900x24' \
+		env TERMINAL_PRIVATE_XVFB=1 python3 tests/context_menu_window_test.py "$(APP)"
+
+.PHONY: thunar-terminal-test
+thunar-terminal-test: $(APP)
+	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
+		HARMONY_DESKTOP_RECOVERY=0 LP_NUM_THREADS=1 OMP_NUM_THREADS=1 sh tests/thunar_terminal_test.sh "$(APP)"
 
 .PHONY: independent-window-test
 independent-window-test: $(APP)
 	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER \
-		LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
+		HARMONY_DESKTOP_RECOVERY=0 LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24' \
 		env TERMINAL_PRIVATE_XVFB=1 python3 tests/independent_windows_test.py "$(APP)"
 
 .PHONY: keyboard-layout-window-test
 keyboard-layout-window-test: $(APP)
 	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u SESSION_MANAGER -u TMUX -u TMUX_PANE \
-		LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24 -noreset' \
+		HARMONY_DESKTOP_RECOVERY=0 LP_NUM_THREADS=1 OMP_NUM_THREADS=1 xvfb-run -a -s '-screen 0 1024x768x24 -noreset' \
 		env TERMINAL_PRIVATE_XVFB=1 python3 tests/keyboard_layout_window_test.py "$(APP)"
 
 .PHONY: cursor-blink-window-test
@@ -167,7 +179,7 @@ pane-native:
 	rm -f $(PANE_LIB)
 	$(AR) rcs $(PANE_LIB) $(PANE_GEN)/*.o
 
-.PHONY: application-test input-test view-test host-test
+.PHONY: application-test input-test view-test host-test context-menu-test
 application-test:
 	ZIRAN="$(ZIRAN)" sh tests/application_test.sh
 
@@ -180,19 +192,22 @@ view-test:
 host-test:
 	ZIRAN="$(ZIRAN)" sh tests/application_test.sh host
 
-pane-ziran-test: terminal-test terminal-capture-test terminal-capture-storage-test reflow-span-test config-test widget-test profile-test session-test launch-test application-test input-test view-test host-test clipboard-test selection-test keys-test osc-test metrics-test pty-test ziran-migration-check
+context-menu-test:
+	ZIRAN="$(ZIRAN)" sh tests/context_menu_test.sh
+
+pane-ziran-test: terminal-test terminal-capture-test terminal-capture-storage-test reflow-span-test config-test widget-test profile-test session-test launch-test application-test input-test view-test host-test context-menu-test clipboard-test selection-test keys-test osc-test metrics-test pty-test ziran-migration-check
 
 package-test:
 	ZIRAN="$(ZIRAN)" sh tests/package_test.sh
 
-test: package-test pane-ziran-test link-window-test selection-copy-window-test standalone-test independent-window-test cursor-blink-window-test install-test parser-replay-test reflow-cursor-test
+test: package-test pane-ziran-test image-input-window-test link-window-test selection-copy-window-test context-menu-window-test thunar-terminal-test standalone-test independent-window-test cursor-blink-window-test install-test parser-replay-test reflow-cursor-test
 
 .PHONY: reflow-cursor-test
 reflow-cursor-test:
 	sh tests/reflow_cursor_test.sh
 
 install: $(APP)
-	mkdir -p "$(DESTDIR)$(BINDIR)" "$(DESTDIR)$(APPDIR)"
+	mkdir -p "$(DESTDIR)$(BINDIR)" "$(DESTDIR)$(APPDIR)" "$(DESTDIR)$(HELPERDIR)"
 	$(INSTALL) -m 755 "$(APP)" "$(DESTDIR)$(BINDIR)/.terminal-install"
 	mv -f "$(DESTDIR)$(BINDIR)/.terminal-install" "$(DESTDIR)$(BINDIR)/terminal"
 	{ \
@@ -201,6 +216,7 @@ install: $(APP)
 		printf '%s\n' 'Icon=utilities-terminal' 'Terminal=false' 'Categories=System;TerminalEmulator;'; \
 		printf '%s\n' 'Keywords=terminal;shell;' 'StartupNotify=true'; \
 	} > "$(DESTDIR)$(APPDIR)/terminal.desktop"
+	$(INSTALL) -m 644 data/terminal-helper.desktop "$(DESTDIR)$(HELPERDIR)/terminal.desktop"
 	if command -v update-desktop-database >/dev/null 2>&1; then update-desktop-database "$(DESTDIR)$(APPDIR)"; fi
 
 install-test: $(APP)
@@ -208,6 +224,7 @@ install-test: $(APP)
 		trap 'rm -rf "$$stage"' EXIT HUP INT TERM; \
 		$(MAKE) --no-print-directory install DESTDIR="$$stage" PREFIX=/usr; \
 		test -x "$$stage/usr/bin/terminal"; test -f "$$stage/usr/share/applications/terminal.desktop"; \
+		test -f "$$stage/usr/share/xfce4/helpers/terminal.desktop"; \
 		env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY "$$stage/usr/bin/terminal" --version | grep -qx "Terminal 0.1"; \
 		if command -v desktop-file-validate >/dev/null 2>&1; then desktop-file-validate "$$stage/usr/share/applications/terminal.desktop"; fi
 

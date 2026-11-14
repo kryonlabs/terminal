@@ -17,6 +17,7 @@ Frames :: #import "kryon/session";
 Geometry :: #import "kryon/geometry";
 Text :: #import "std/byte_text_linux";
 Links :: #import "terminal_pane_links";
+OpenUri :: #import "kryon/open_uri";
 
 #scope_export
 ButtonFrame :: struct { down: bool; pressed: bool; released: bool; }
@@ -35,6 +36,7 @@ Frame :: struct {
 Result :: struct {
     wrote: s32
     hyperlink: string
+    link_hovered: bool
     cursor_changed: bool
     cursor_hidden: bool
 }
@@ -220,7 +222,7 @@ Sink :: struct { app: *State.State; keys: []s32; wrote: s32; persist: bool; }
 Write :: (userdata: *void, value: *u8, length: s32) -> s32 {
     sink := cast(*Sink)userdata
     session := Sessions.Active(sink.app)
-    if session == null || value == null || length <= 0 { return 0 }
+    if session == null || session.read_only || value == null || length <= 0 { return 0 }
     replacement: [1]u8
     if length == 1 && value[0] == 127 && sink.app.config.backspace_binding == Types.TERMINAL_PANE_KEY_BINDING_CONTROL_H {
         replacement[0] = 8; value = *replacement[0]
@@ -276,6 +278,17 @@ Handle :: (app: *State.State, frame: Frame, persist: bool = true) -> Result {
     if frame.focused && (frame.keyboard.keys.count > 0 || frame.keyboard.repeated.count > 0 || frame.keyboard.codepoints.count > 0) {
         State.ResetCursorBlink(app, frame.now)
     }
+    link_bytes: [8192]u8
+    target: string
+    if Inside(app, frame) {
+        col := cast(s32)((frame.x - app.viewport.x) / cast(float32)app.cell_w)
+        viewport_row := cast(s32)((frame.y - app.viewport.y) / cast(float32)app.line_h)
+        if viewport_row >= 0 && viewport_row < app.visible_rows {
+            target = Links.LinkAt(*session.terminal, null, col,
+                app.first_visible_row + viewport_row, link_bytes[:])
+            result.link_hovered = target != ""
+        }
+    }
     if app.link_pointer_claimed && !frame.left.pressed {
         if frame.left.released || !frame.left.down { app.link_pointer_claimed = false }
         if frame.focused { result.wrote = PumpKeyboard(app, frame.keyboard, persist) }
@@ -286,17 +299,12 @@ Handle :: (app: *State.State, frame: Frame, persist: bool = true) -> Result {
     // click-to-focus. Alt-click must work in full-screen and embedded views too,
     // without sending half a click.
     if Inside(app, frame) && frame.left.pressed && LinkModifiers(frame.keyboard) {
-        col := cast(s32)((frame.x - app.viewport.x) / cast(float32)app.cell_w)
-        viewport_row := cast(s32)((frame.y - app.viewport.y) / cast(float32)app.line_h)
-        if viewport_row < app.visible_rows {
-            link_bytes: [8192]u8
-            target := Links.LinkAt(*session.terminal, null, col, app.first_visible_row + viewport_row, link_bytes[:])
-            // Copy the detected substring into persistent application storage
-            // before returning it across the borrowed frame boundary.
-            if target != "" {
-                Session.CopyText(app.link_text[:], target)
-                result.hyperlink = Text.TextFromCString(*app.link_text[0])
-            }
+        // Copy the detected substring into persistent application storage
+        // before returning it across the borrowed frame boundary.
+        if target != "" {
+            Session.CopyText(app.link_text[:], target)
+            result.hyperlink = Text.TextFromCString(*app.link_text[0])
+            unused OpenUri.OpenUri(result.hyperlink)
         }
         if result.hyperlink != "" {
             app.link_pointer_claimed = !frame.left.released
@@ -311,12 +319,7 @@ Handle :: (app: *State.State, frame: Frame, persist: bool = true) -> Result {
         app.keyboard_state = Keys.TerminalPaneInputState.{}
         return result
     }
-    if app.selection.active != 0 && Inside(app, frame) &&
-        (frame.right.down || frame.right.pressed || frame.right.released) {
-        if frame.right.released && Clipboard.CopySelection(app) {
-            app.selection.active = 0; app.selection.dragging = 0
-        }
-    } else if TerminalMouse(app, session, frame) {
+    if TerminalMouse(app, session, frame) {
         app.selection.active = 0; session.scroll_offset = 0; app.context_menu_open = false
     } else {
         if Inside(app, frame) && frame.wheel != 0.0 {
@@ -328,10 +331,16 @@ Handle :: (app: *State.State, frame: Frame, persist: bool = true) -> Result {
             if consumed { session.scroll_offset = 0 }
             else { ScrollBy(app, session, WheelScrollDelta(frame.wheel)) }
         }
-        if session.terminal.mouse_mode == 0 && Inside(app, frame) && frame.middle.pressed { Clipboard.PastePreferred(app, session) }
-        HandleSelection(app, session, frame)
+        if session.terminal.mouse_mode == 0 && Inside(app, frame) && frame.middle.pressed { Clipboard.PastePrimary(app, session) }
+        // A secondary-button gesture owns this frame. It may open the menu,
+        // but it must never move or collapse the existing selection.
+        if !frame.right.down && !frame.right.pressed && !frame.right.released {
+            HandleSelection(app, session, frame)
+        }
         if Inside(app, frame) && frame.right.released {
             app.context_menu_open = true; app.context_menu_x = cast(s32)frame.x; app.context_menu_y = cast(s32)frame.y
+            app.context_link[0] = 0
+            if target != "" { Session.CopyText(app.context_link[:], target) }
         }
     }
     if !app.context_menu_open { result.wrote = PumpKeyboard(app, frame.keyboard, persist) }

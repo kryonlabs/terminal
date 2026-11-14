@@ -16,7 +16,7 @@ esac
 mkdir -p build/ziran
 work=$(mktemp -d "$root/build/ziran/$suite-test.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
-# The imported fixture exports exactly Kryon's three native host symbols.
+# The imported fixture exports Kryon's clipboard and PRIMARY host symbols.
 entry=$module:main
 source=tests/$module.zi
 "$ziran" ir --project $lock_flags --entry "$entry" -o "$work/ir" "$source"

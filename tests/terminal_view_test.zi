@@ -393,6 +393,49 @@ CheckTabReordering :: () -> bool {
     return true
 }
 
+// Menu-bar dropdowns and submenus paint above the tabs and terminal pane
+// (owner, 2026-11-12: an opened submenu was hidden under the pane).
+PaintIndex :: (frame: Frames.Session, value: string) -> s32 {
+    for index: 0..Paint.PendingPaintCount(frame) - 1 {
+        if Paint.PendingPaintAt(frame, index).value == value { return cast(s32)index }
+    }
+    return -1
+}
+LastPanePaint :: (frame: Frames.Session, node: s32) -> s32 {
+    last: s32 = -1
+    for index: 0..Paint.PendingPaintCount(frame) - 1 {
+        if Paint.PendingPaintAt(frame, index).node == node { last = cast(s32)index }
+    }
+    return last
+}
+CheckMenuAbovePane :: () -> bool {
+    frame := Frames.SessionOpen(); defer Frame.CloseSession(frame)
+    app := Application(); if app == null { return false }; defer State.Dispose(app)
+    app.launch.show_menubar = true
+    Feed(*app.sessions[0].terminal, "pane text")
+    bounds := Rectangle.{0.0, 0.0, 480.0, 320.0}
+    menus: [2]string = .["Zoom In", "Underline"]
+    for row: 0..1 {
+        label := menus[row]
+        app.menu.open_index = cast(s32)(2 + row); app.menu.top_index = app.menu.open_index
+        app.menu.focused = true; app.menu.depth = cast(s32)row
+        if row == 1 { app.menu.selected[0] = 13 }
+        result: View.ViewResult
+        for step: 0..3 {
+            result = Begin(frame, app, bounds, cast(float64)step)
+            if step < 3 && !Finish(frame) { return Failure("menu frame") }
+        }
+        item := PaintIndex(frame, label); pane := LastPanePaint(frame, result.node)
+        if item < 0 || pane < 0 || item <= pane {
+            ReportTree(frame); unused Finish(frame)
+            print("Terminal view: % paints at %, pane last paints at %\n", label, item, pane)
+            return Failure("menu panel paints under the terminal pane")
+        }
+        if !Finish(frame) { return Failure("menu frame end") }
+    }
+    return true
+}
+
 #program_export
 main :: () -> s32 {
     if !CheckCells() { return 1 }
@@ -402,6 +445,7 @@ main :: () -> s32 {
     if !CheckLargeGrid() { return 5 }
     if !CheckTabReordering() { return 6 }
     if !CheckCursorBlink() { return 7 }
+    if !CheckMenuAbovePane() { return 8 }
     print("Terminal view rendering and retained interaction passed\n")
     return 0
 }

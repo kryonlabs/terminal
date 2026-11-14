@@ -1,6 +1,7 @@
 #scope_module
 Engine :: #import "terminal";
 Text :: #import "std/byte_text_linux";
+PaneText :: #import "terminal_pane_text";
 
 CellAt :: (terminal: *Engine.Terminal, view: *Engine.TerminalViewport, col: s32, row: s32) -> *Engine.Cell {
     if view != null { return Engine.terminal_viewport_cell(view, col, row) }
@@ -10,13 +11,93 @@ Wrapped :: (terminal: *Engine.Terminal, view: *Engine.TerminalViewport, row: s32
     if view != null { return Engine.terminal_viewport_line_wrapped(view, row) != 0 }
     return Engine.terminal_visible_line_wrapped(terminal, row) != 0
 }
-ByteAt :: (terminal: *Engine.Terminal, view: *Engine.TerminalViewport, col: s32, row: s32) -> u8 {
+CellHasText :: (terminal: *Engine.Terminal, view: *Engine.TerminalViewport,
+    col: s32, row: s32) -> bool {
     cell := CellAt(terminal, view, col, row)
-    if cell == null || cell.codepoint <= cast(u32)32 || cell.codepoint >= cast(u32)127 { return 32 }
-    return cast(u8)cell.codepoint
+    return cell != null && (cell.style & Engine.STYLE_WIDE_CONT) == 0 &&
+        cell.codepoint > cast(u32)32
+}
+PreviousCell :: (terminal: *Engine.Terminal, view: *Engine.TerminalViewport,
+    cols: s32, col: *s32, row: *s32) -> bool {
+    if col == null || row == null { return false }
+    col.* -= 1
+    if col.* < 0 {
+        if row.* <= 0 || !Wrapped(terminal, view, row.* - 1) { return false }
+        row.* -= 1; col.* = cols - 1
+    }
+    while col.* >= 0 {
+        cell := CellAt(terminal, view, col.*, row.*)
+        if cell == null || (cell.style & Engine.STYLE_WIDE_CONT) == 0 { return true }
+        col.* -= 1
+    }
+    return false
+}
+NextCell :: (terminal: *Engine.Terminal, view: *Engine.TerminalViewport,
+    cols: s32, lines: s32, col: *s32, row: *s32) -> bool {
+    if col == null || row == null { return false }
+    col.* += 1
+    if col.* >= cols {
+        if row.* >= lines - 1 || !Wrapped(terminal, view, row.*) { return false }
+        row.* += 1; col.* = 0
+    }
+    while col.* < cols {
+        cell := CellAt(terminal, view, col.*, row.*)
+        if cell == null || (cell.style & Engine.STYLE_WIDE_CONT) == 0 { return true }
+        col.* += 1
+    }
+    if row.* >= lines - 1 || !Wrapped(terminal, view, row.*) { return false }
+    row.* += 1; col.* = 0
+    return true
+}
+AppendCell :: (cell: *Engine.Cell, out: []u8, used: *s32) -> bool {
+    if cell == null || used == null || cell.codepoint <= cast(u32)32 ||
+       (cell.style & Engine.STYLE_WIDE_CONT) != 0 { return false }
+    capacity: s32 = 2147483647
+    if out.count < 2147483647 { capacity = cast(s32)out.count }
+    if !PaneText.AppendTerminalPaneUTF8Codepoint(*out[0], capacity,
+            used, cell.codepoint) { return false }
+    if cell.combining != cast(u32)0 &&
+       !PaneText.AppendTerminalPaneUTF8Codepoint(*out[0], capacity,
+            used, cell.combining) { return false }
+    return true
 }
 Prefix :: (value: string, at: s32, prefix: string) -> bool {
     return at >= 0 && cast(s64)at + prefix.count <= value.count && value[at:at + cast(s32)prefix.count] == prefix
+}
+EmailWord :: (byte: u8) -> bool {
+    return (byte >= #char "a" && byte <= #char "z") ||
+        (byte >= #char "A" && byte <= #char "Z") ||
+        (byte >= #char "0" && byte <= #char "9") || byte == #char "." ||
+        byte == #char "_" || byte == #char "%" || byte == #char "+" || byte == #char "-"
+}
+EmailAt :: (value: *u8, size: s32, pointer: s32, out: []u8) -> string {
+    begin := pointer; end := pointer + 1
+    while begin > 0 && EmailWord(value[begin - 1]) { begin -= 1 }
+    while end < size && EmailWord(value[end]) { end += 1 }
+    // The @ itself is not an EmailWord, so include the other half when the
+    // pointer lands on either side of the address.
+    if begin > 0 && value[begin - 1] == #char "@" {
+        begin -= 1
+        while begin > 0 && EmailWord(value[begin - 1]) { begin -= 1 }
+    } else if end < size && value[end] == #char "@" {
+        end += 1
+        while end < size && EmailWord(value[end]) { end += 1 }
+    }
+    at: s32 = -1; dots: s32
+    for index: begin..end - 1 {
+        if value[index] == #char "@" { if at >= 0 { return "" }; at = index }
+        else if at >= 0 && value[index] == #char "." { dots += 1 }
+        else if !EmailWord(value[index]) { return "" }
+    }
+    if at <= begin || at + 1 >= end || dots == 0 || value[end - 1] == #char "." { return "" }
+    length := end - begin
+    if cast(s64)length + 7 >= out.count { return "" }
+    address: [8192]u8
+    for index: 0..length - 1 { address[index] = value[begin + index] }
+    prefix := "mailto:"
+    for i: 0..6 { out[i] = prefix[i] }
+    for index: 0..length - 1 { out[index + 7] = address[index] }
+    return Text.TextFromBytes(out[0:cast(s64)length + 7])
 }
 
 #scope_export
@@ -39,34 +120,46 @@ LinkAt :: (terminal: *Engine.Terminal, view: *Engine.TerminalViewport,
             return Text.TextFromBytes(out[:value.count])
         }
     }
-    if ByteAt(terminal, view, col, row) == cast(u8)32 { return "" }
-    start_col := col; start_row := row; distance: s64
-    while distance < out.count {
-        c := start_col - 1; r := start_row
-        if c < 0 {
-            if r == 0 || !Wrapped(terminal, view, r - 1) { break }
-            r -= 1; c = cols - 1
+    // A wide glyph's continuation cell belongs to the same logical character.
+    if (cell.style & Engine.STYLE_WIDE_CONT) != 0 {
+        while col > 0 && (cell.style & Engine.STYLE_WIDE_CONT) != 0 {
+            col -= 1; cell = CellAt(terminal, view, col, row)
+            if cell == null { return "" }
         }
-        if ByteAt(terminal, view, c, r) == cast(u8)32 { break }
-        start_col = c; start_row = r; distance += 1
     }
-    if distance >= out.count { return "" }
+    if !CellHasText(terminal, view, col, row) { return "" }
+    start_col := col; start_row := row
+    while true {
+        c := start_col; r := start_row
+        if !PreviousCell(terminal, view, cols, *c, *r) ||
+           !CellHasText(terminal, view, c, r) { break }
+        start_col = c; start_row = r
+    }
     size: s32; at: s32 = -1; c := start_col; r := start_row
     while r < lines {
-        byte := ByteAt(terminal, view, c, r)
-        if byte == cast(u8)32 { break }
-        if cast(s64)size + 1 >= out.count { return "" }
+        current := CellAt(terminal, view, c, r)
+        if current == null || !CellHasText(terminal, view, c, r) { break }
         if c == col && r == row { at = size }
-        out[size] = byte; size += 1; c += 1
-        if c >= cols {
-            if !Wrapped(terminal, view, r) { break }
-            c = 0; r += 1
-        }
+        if !AppendCell(current, out, *size) { return "" }
+        next_col := c; next_row := r
+        if !NextCell(terminal, view, cols, lines, *next_col, *next_row) { break }
+        c = next_col; r = next_row
     }
     if at < 0 { return "" }
-    value := Text.TextFromBytes(out[:size]); begin: s32 = -1
-    for i: 0..at { if Prefix(value, i, "https://") || Prefix(value, i, "http://") { begin = i; break } }
-    if begin < 0 { return "" }
+    out[size] = 0
+    begin: s32 = -1
+    {
+        token_view := Text.TextFromBytes(out[:size])
+        for i: 0..at {
+            if Prefix(token_view, i, "https://") || Prefix(token_view, i, "http://") { begin = i; break }
+        }
+    }
+    if begin < 0 {
+        token: [8192]u8
+        for index: 0..size - 1 { token[index] = out[index] }
+        return EmailAt(*token[0], size, at, out)
+    }
+    value := Text.TextFromBytes(out[:size])
     end := begin; depth: s32
     while end < size && value[end] != cast(u8)62 && value[end] != cast(u8)34 &&
         value[end] != cast(u8)39 && value[end] != cast(u8)96 && value[end] != cast(u8)92 &&

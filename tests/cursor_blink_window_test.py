@@ -65,7 +65,7 @@ def main():
                     'KRYON_CAPTURE_PATH', 'ENV', 'BASH_ENV'):
             env.pop(key, None)
         env.update(XDG_CONFIG_HOME=str(root / 'config'), XDG_STATE_HOME=str(root / 'state'),
-                   SDL_VIDEODRIVER='x11', YUE_DESKTOP_RECOVERY='0',
+                   SDL_VIDEODRIVER='x11', HARMONY_DESKTOP_RECOVERY='0',
                    LP_NUM_THREADS='1', OMP_NUM_THREADS='1')
         apps, windows, logs, inputs = [], [], [], []
 

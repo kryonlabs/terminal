@@ -37,7 +37,7 @@ temporary=$(mktemp "$output/bin/terminal.XXXXXX")
 trap 'rm -f "$temporary"' EXIT HUP INT TERM
 "${CC:-cc}" -std=c11 -O1 -ffunction-sections -fdata-sections \
     -I"$generated" "$generated"/*.c -Wl,--gc-sections "$raylib_archive" \
-    $(pkg-config --libs sdl2 libwebpdemux libwebp) -l:libgtk-3.so.0 -l:libgdk-3.so.0 -l:libglib-2.0.so.0 -lGL -ldl -lpthread -lm -o "$temporary"
+    $(pkg-config --libs sdl2 libwebpdemux libwebp gtk+-3.0 x11 xcb) -lGL -ldl -lpthread -lm -o "$temporary"
 chmod 755 "$temporary"
 mv "$temporary" "$output/bin/terminal"
 trap - EXIT HUP INT TERM

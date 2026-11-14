@@ -358,7 +358,7 @@ TestLinks :: () -> bool {
     Engine.terminal_resize(*terminal, 20, 4)
     url := "https://example.org/a(b)?next=https://example.net#part"
     Feed(*terminal, "Open ("); Feed(*terminal, url); Feed(*terminal, "). tail")
-    bytes: [128]u8
+    bytes: [8192]u8
     for i: 0..cast(s32)url.count - 1 {
         at := 6 + i
         if Pane.TerminalPaneLinkAt(*terminal, null, at % 20, at / 20, bytes[:]) != url { print("wrapped link cell %\n", i); return false }
@@ -380,6 +380,42 @@ TestLinks :: () -> bool {
     if Pane.TerminalPaneLinkAt(*terminal, null, -1, row, bytes[:]) != "" { return false }
     Feed(*terminal, "\x1b[2J\x1b[Hhttps://\r\nexample.org")
     if Pane.TerminalPaneLinkAt(*terminal, null, 2, row, bytes[:]) != "" { return false }
+    Feed(*terminal, "\x1b[2J\x1b[Hmail person@example.org now")
+    row = Engine.terminal_visible_line_count(*terminal) - terminal.rows
+    if Pane.TerminalPaneLinkAt(*terminal, null, 8, row, bytes[:]) !=
+       "mailto:person@example.org" { return false }
+    Feed(*terminal, "\r\nnext\r\nnext\r\nnext\r\nnext")
+    if Pane.TerminalPaneLinkAt(*terminal, null, 12, row, bytes[:]) !=
+       "mailto:person@example.org" { return false }
+    oauth := "https://auth.openai.com/oauth/authorize?response_type=code&client_id=app&redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback&scope=openid&state=state-value-0123456789abcdef&codex_cli_simplified_flow=true"
+    oauth_terminal: Engine.Terminal; Engine.terminal_init(*oauth_terminal)
+    defer Engine.terminal_close(*oauth_terminal)
+    Engine.terminal_resize(*oauth_terminal, 56, 6)
+    Feed(*oauth_terminal, oauth)
+    // Column 56 splits 1455 after its first digit and splits the state value.
+    for i: 0..cast(s32)oauth.count - 1 {
+        if Pane.TerminalPaneLinkAt(*oauth_terminal, null, i % 56, i / 56,
+                bytes[:]) != oauth { print("OAuth wrapped link cell %\n", i); return false }
+    }
+    unicode := "https://example.org/café/界?q=%E2%9C%93"
+    unicode_terminal: Engine.Terminal; Engine.terminal_init(*unicode_terminal)
+    defer Engine.terminal_close(*unicode_terminal)
+    Engine.terminal_resize(*unicode_terminal, 20, 4)
+    Feed(*unicode_terminal, unicode)
+    if Pane.TerminalPaneLinkAt(*unicode_terminal, null, 0, 0, bytes[:]) != unicode {
+        print("Unicode link first row failed\n"); return false
+    }
+    if Pane.TerminalPaneLinkAt(*unicode_terminal, null, 5, 1, bytes[:]) != unicode {
+        print("Unicode link wide cell failed\n"); return false
+    }
+    if Pane.TerminalPaneLinkAt(*unicode_terminal, null, 6, 1, bytes[:]) != unicode {
+        print("Unicode link continuation failed\n"); return false
+    }
+    hard_terminal: Engine.Terminal; Engine.terminal_init(*hard_terminal)
+    defer Engine.terminal_close(*hard_terminal)
+    Engine.terminal_resize(*hard_terminal, 64, 3)
+    Feed(*hard_terminal, "https://auth.openai.com/oauth/authorize?\r\nstate=hard-break")
+    if Pane.TerminalPaneLinkAt(*hard_terminal, null, 2, 1, bytes[:]) != "" { return false }
     return true
 }
 

@@ -1,5 +1,6 @@
 // Bulk transport chunks must match the parser's byte-at-a-time semantics.
 #import "terminal";
+ClipboardHost :: #import "terminal_clipboard_host";
 Text :: #import "std/byte_text_linux";
 
 Bytes :: (text: string) -> *u8 {

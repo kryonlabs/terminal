@@ -24,10 +24,11 @@ UISessions :: #import "kryon/session";
 Frame :: #import "kryon/Frame";
 Input :: #import "kryon/tree_input";
 using Geometry :: #import "kryon/geometry";
-Fields :: #import "kryon/text_input_props";
+Fields :: #import "kryon/text_field";
 Context :: #import "app_context_menu";
+MenuWidget :: #import "kryon/context_menu";
 Menu :: #import "app_menu";
-Widgets :: #import "kryon/Widgets";
+Widgets :: #import "kryon/menu";
 Tree :: #import "kryon/tree";
 File :: #import "std/file_linux";
 
@@ -385,7 +386,7 @@ CheckSearchDialog :: () -> bool {
 CheckPromptStorage :: () -> bool {
     output: [8]u8
     Session.CopyText(output[:], "abcd")
-    edit: Fields.TextFieldEdit
+    edit: Fields.Edit
     edit.changed = true; edit.start = 1; edit.end = 2
     edit.replacement = Value(output[:])[0:3]
     if !Dialog.ApplyEdit(output[:], edit) || Value(output[:]) != "aabccd" { return Failure("Borrowed prompt edit") }
@@ -417,6 +418,22 @@ ClickKey :: (frame: UISessions.Session, key: u64) -> bool {
     }
     return false
 }
+// Rows are found by label in the menu Terminal builds, so the checks follow
+// the xfce4-terminal structure instead of fixed pixel offsets.
+ContextRowKey :: (app: *State.State, label: string) -> u64 {
+    items: [57]MenuWidget.ContextMenuItem
+    count := Context.BuildItems(app, *app.sessions[app.active], items[:])
+    for index: 0..count - 1 {
+        if items[index].parent == 0 && !items[index].separator && items[index].label == label {
+            return MenuWidget.ContextMenuRowKey(cast(u64)1300, index)
+        }
+    }
+    return cast(u64)0
+}
+ClickContext :: (frame: UISessions.Session, app: *State.State, label: string) -> bool {
+    key := ContextRowKey(app, label)
+    return key != cast(u64)0 && ClickKey(frame, key)
+}
 CheckContextMenu :: () -> bool {
     app := Application()
     if app == null { return false }
@@ -429,14 +446,14 @@ CheckContextMenu :: () -> bool {
     app.session_count = 1; app.active = 0
     app.context_menu_x = 20; app.context_menu_y = 20; app.context_menu_open = true
     if !DrawContext(frame, app) { return false }
-    Click(frame, 40.0, 63.0)
-    if !DrawContext(frame, app) || !app.context_menu_open || app.session_count != 1 {
-        return Failure("Context menu disabled last-tab close")
-    }
     Host.HostClipboardReset("keep clipboard")
-    Click(frame, 40.0, 98.0)
-    if !DrawContext(frame, app) || !app.context_menu_open || Host.HostClipboardText() != "keep clipboard" {
+    if !ClickContext(frame, app, "Copy") || !DrawContext(frame, app) || !app.context_menu_open ||
+        Host.HostClipboardText() != "keep clipboard" {
         return Failure("Context menu disabled copy")
+    }
+    if !ClickContext(frame, app, "Copy as HTML") || !DrawContext(frame, app) || !app.context_menu_open ||
+        Host.HostClipboardText() != "keep clipboard" {
+        return Failure("Context menu disabled copy as HTML")
     }
     Input.TypedCodepointSend(frame, #char "x")
     Input.KeyboardSend(frame, Input.KeyEscape)
@@ -445,15 +462,21 @@ CheckContextMenu :: () -> bool {
     }
     app.context_menu_open = true
     if !DrawContext(frame, app) { return false }
-    Click(frame, 40.0, 37.0)
-    if !DrawContext(frame, app) || app.context_menu_open || app.session_count != 2 || app.active != 1 {
-        return Failure("Context menu new tab")
+    if !ClickContext(frame, app, "Open Tab") || !DrawContext(frame, app) || app.context_menu_open ||
+        app.session_count != 2 || app.active != 1 {
+        return Failure("Context menu open tab")
     }
     app.context_menu_open = true
     if !DrawContext(frame, app) { return false }
-    Click(frame, 40.0, 63.0)
-    if !DrawContext(frame, app) || app.context_menu_open || app.session_count != 1 {
-        return Failure("Context menu close tab")
+    if !ClickContext(frame, app, "Read-Only") || !DrawContext(frame, app) || app.context_menu_open ||
+        !app.sessions[1].read_only || app.sessions[0].read_only {
+        return Failure("Context menu read-only check")
+    }
+    app.context_menu_open = true
+    if !DrawContext(frame, app) { return false }
+    if !ClickContext(frame, app, "Read-Only") || !DrawContext(frame, app) || app.context_menu_open ||
+        app.sessions[1].read_only {
+        return Failure("Context menu read-only uncheck")
     }
     app.context_menu_open = true
     if !DrawContext(frame, app) { return false }
@@ -461,9 +484,9 @@ CheckContextMenu :: () -> bool {
     if !DrawContext(frame, app) || app.context_menu_open { return Failure("Context menu outside dismissal") }
     app.context_menu_open = true
     if !DrawContext(frame, app) { return false }
-    Click(frame, 40.0, 210.0)
-    if !DrawContext(frame, app) || app.context_menu_open || !app.search_visible || !app.search_focused {
-        return Failure("Context menu Find command")
+    if !ClickContext(frame, app, "Preferences...") || !DrawContext(frame, app) || app.context_menu_open ||
+        app.menu.open_index != 3 || !app.menu.focused {
+        return Failure("Context menu Preferences command")
     }
     return true
 }

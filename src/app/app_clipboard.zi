@@ -7,6 +7,18 @@ Pane :: #import "terminal_pane_clipboard";
 Engine :: #import "terminal";
 Data :: #import "terminal_clipboard";
 Drop :: #import "terminal_drop";
+SystemImage :: #import "kryon/SystemClipboardLinux";
+Mime :: #import "kryon/MimeClipboardLinux";
+File :: #import "std/file_linux";
+Text :: #import "std/byte_text_linux";
+CString :: #import "std/c_string";
+Random :: #import "std/random_linux";
+using V :: #import "std/vec";
+libc :: #system_library "c";
+Environment :: (name: *u8) -> *u8 #foreign libc "getenv";
+Allocate :: (count: usize, size: usize) -> *u8 #foreign libc "calloc";
+Release :: (memory: *void) #foreign libc "free";
+Remove :: (path: *u8) -> s32 #foreign libc "remove";
 
 Actions :: (app: *State.State, session: *Session.Session) -> Pane.TerminalPaneClipboardActions {
     selection: Pane.TerminalPaneClipboardController
@@ -20,15 +32,77 @@ ActiveActions :: (app: *State.State) -> Pane.TerminalPaneClipboardActions {
     return Actions(app, Sessions.Active(app))
 }
 
+image_bytes: *u8;
+selection_bytes: [262144]u8;
+path_bytes: [4096]u8;
+mime_open: bool;
+mime_owner: u64;
+
+Bytes :: (value: string) -> *u8 {
+    descriptor := cast(*Text.TextDescriptor)(*value)
+    return descriptor.data
+}
+ByteView :: (value: string) -> []u8 {
+    descriptor := cast(*Text.TextDescriptor)(*value)
+    return Text.BytesFromPointer(descriptor.data, cast(u64)value.count)
+}
+MimeReady :: () -> bool {
+    if !mime_open { mime_open = Mime.MimeClipboardOpen() }
+    return mime_open
+}
+LocalMimeOwner :: () -> bool {
+    return mime_owner != 0 && MimeReady() && Mime.MimeClipboardOwner() == mime_owner
+}
+ReleaseMime :: () {
+    if mime_owner != 0 && MimeReady() { unused Mime.MimeClipboardRelease(mime_owner) }
+    mime_owner = 0
+}
+ImagePath :: () -> string {
+    if image_bytes == null { image_bytes = Allocate(cast(usize)33554432, cast(usize)1) }
+    if image_bytes == null { return "" }
+    result := SystemImage.SystemClipboardImage(Text.BytesFromPointer(image_bytes, cast(u64)33554432))
+    if !result.available || !result.found || result.png.count < 8 || result.png.count != result.size { return "" }
+    home := Environment(Bytes("XDG_CACHE_HOME")); root := ifx home != null then Text.TextFromCString(home) else ""
+    folder_builder: Vec(u8)
+    if root == "" {
+        home = Environment(Bytes("HOME")); if home == null { return "" }
+        BuilderPrint(*folder_builder, "%/.cache", Text.TextFromCString(home))
+    } else { BuilderPrint(*folder_builder, "%", root) }
+    BuilderPrint(*folder_builder, "/terminal/clipboard")
+    folder := BuilderFinish(folder_builder); defer Release(cast(*void)Bytes(folder))
+    for index: 1..cast(s32)folder.count - 1 {
+        if folder[index] == 47 && !File.CreatePrivateDirectory(folder[:index]) { return "" }
+    }
+    if !File.CreatePrivateDirectory(folder) { return "" }
+    random: [16]u8; if !Random.FillSecure(random[:]) { return "" }
+    name: Vec(u8); BuilderPrint(*name, "%/", folder); digits := "0123456789abcdef"
+    for byte: random {
+        at := cast(s32)byte
+        BuilderPrint(*name, "%", digits[at / 16:at / 16 + 1])
+        BuilderPrint(*name, "%", digits[at % 16:at % 16 + 1])
+    }
+    BuilderPrint(*name, ".png")
+    path := BuilderFinish(name); defer Release(cast(*void)Bytes(path))
+    if !CString.CopyCString(path, path_bytes[:]) { return "" }
+    file := File.OpenReplace(path); if !file.valid { return "" }
+    used: s64
+    while used < result.png.count {
+        count := File.Write(file, result.png[used:])
+        if count <= 0 { break }
+        used += count
+    }
+    closed := File.CloseFile(file)
+    if !closed || used != result.png.count { unused Remove(*path_bytes[0]); return "" }
+    return Text.TextFromCString(*path_bytes[0])
+}
+
 #scope_export
-ImagePath :: #type () -> string;
-image_path: ImagePath;
 PasteImage :: (session: *Session.Session) -> bool {
-    if session==null || image_path==null { return false }
-    path:=image_path(); if path=="" { return false }
-    buffer: [16384]u8; text:=Drop.DroppedPathText(path,buffer[:])
-    if text=="" { return false }
-    PasteText(session,text); return true
+    if session == null || session.read_only { return false }
+    path := ImagePath(); if path == "" { return false }
+    buffer: [16384]u8; text := Drop.DroppedPathText(path, buffer[:])
+    if text == "" { return false }
+    PasteText(session, text); return true
 }
 CollectSelection :: (app: *State.State, output: []u8) -> s32 {
     if output.count <= 0 { return 0 }
@@ -39,20 +113,78 @@ CollectSelection :: (app: *State.State, output: []u8) -> s32 {
 }
 PrimaryAvailable :: () -> bool { return Pane.TerminalPaneClipboardPrimarySelectionAvailable() != 0 }
 UpdatePrimary :: (app: *State.State) { Pane.TerminalPaneClipboardUpdatePrimary(ActiveActions(app)) }
-CopySelection :: (app: *State.State) -> bool { return Pane.TerminalPaneClipboardCopy(ActiveActions(app)) != 0 }
+CopySelection :: (app: *State.State) -> bool {
+    ReleaseMime()
+    return Pane.TerminalPaneClipboardCopy(ActiveActions(app)) != 0
+}
+CopyText :: (session: *Session.Session, text: string) -> bool {
+    if session == null || text == "" { return false }
+    ReleaseMime()
+    clipboard := Engine.terminal_clipboard(*session.terminal)
+    if Data.RequestClipboardBufferWrite(clipboard.clipboard, Bytes(text)) == 0 { return false }
+    Data.FlushClipboardBufferToHost(clipboard.clipboard)
+    return true
+}
+CopySelectionHtml :: (app: *State.State) -> bool {
+    session := Sessions.Active(app)
+    if session == null { return false }
+    if CollectSelection(app, selection_bytes[:]) == 0 || !MimeReady() { return false }
+    plain := Text.TextFromCString(*selection_bytes[0])
+    if plain == "" { return false }
+    html: Vec(u8); BuilderPrint(*html, "<pre>")
+    for index: cast(s64)0..plain.count - 1 {
+        byte := plain[index]
+        if byte == #char "&" { BuilderPrint(*html, "&amp;") }
+        else if byte == #char "<" { BuilderPrint(*html, "&lt;") }
+        else if byte == #char ">" { BuilderPrint(*html, "&gt;") }
+        else if byte == #char "\"" { BuilderPrint(*html, "&quot;") }
+        else { BuilderPrint(*html, "%", plain[index:index + 1]) }
+    }
+    BuilderPrint(*html, "</pre>")
+    markup := BuilderFinish(html); defer Release(cast(*void)Bytes(markup))
+    payloads: [3]Mime.MimeClipboardPayload
+    payloads[0] = Mime.MimeClipboardPayload.{"text/plain;charset=utf-8", ByteView(plain)}
+    payloads[1] = Mime.MimeClipboardPayload.{"UTF8_STRING", ByteView(plain)}
+    payloads[2] = Mime.MimeClipboardPayload.{"text/html", ByteView(markup)}
+    published := Mime.MimeClipboardPublish(payloads[:])
+    if published.status != Mime.MimeClipboardStatus.Ok { return false }
+    mime_owner = published.owner
+    clipboard := Engine.terminal_clipboard(*session.terminal)
+    return Data.SetClipboardBufferText(clipboard.clipboard, *selection_bytes[0]) != 0
+}
 SelectAll :: (app: *State.State) { Pane.TerminalPaneClipboardSelectAll(ActiveActions(app)) }
 PasteText :: (session: *Session.Session, text: string) {
-    if session == null || text == "" { return }
+    if session == null || session.read_only || text == "" { return }
     clipboard := Engine.terminal_clipboard(*session.terminal)
     if Data.PasteText(clipboard.clipboard, text, clipboard.bracketed_paste,
         clipboard.write_text, clipboard.userdata) != 0 { session.scroll_offset = 0 }
 }
-PasteClipboard :: (session: *Session.Session) { Pane.TerminalPaneClipboardPasteActionsClipboard(Actions(null, session)) }
+PasteClipboard :: (session: *Session.Session) {
+    if session == null || session.read_only { return }
+    if LocalMimeOwner() {
+        clipboard := Engine.terminal_clipboard(*session.terminal)
+        PasteText(session, Text.TextFromCString(Data.GetClipboardBufferText(clipboard.clipboard)))
+        return
+    }
+    Pane.TerminalPaneClipboardPasteActionsClipboard(Actions(null, session))
+}
 PastePrimary :: (app: *State.State, session: *Session.Session) {
-    if app != null { Pane.TerminalPaneClipboardPasteActionsPrimary(Actions(app, session)) }
+    if app != null && session != null && !session.read_only { Pane.TerminalPaneClipboardPasteActionsPrimary(Actions(app, session)) }
 }
 PastePreferred :: (app: *State.State, session: *Session.Session) {
-    if app != null { Pane.TerminalPaneClipboardPasteActionsPreferred(Actions(app, session)) }
+    if app != null && session != null && !session.read_only { Pane.TerminalPaneClipboardPasteActionsPreferred(Actions(app, session)) }
 }
-SyncFromHost :: (session: *Session.Session) { Pane.TerminalPaneClipboardActionsSyncFromHost(Actions(null, session)) }
+Pump :: () {
+    if MimeReady() { unused Mime.MimeClipboardPump(32) }
+    if mime_owner != 0 && !LocalMimeOwner() { mime_owner = 0 }
+}
+SyncFromHost :: (session: *Session.Session) {
+    Pump()
+    if !LocalMimeOwner() { Pane.TerminalPaneClipboardActionsSyncFromHost(Actions(null, session)) }
+}
 FlushToHost :: (session: *Session.Session) { Pane.TerminalPaneClipboardActionsFlushToHost(Actions(null, session)) }
+Close :: () {
+    if mime_open { Mime.MimeClipboardClose() }
+    if image_bytes != null { Release(cast(*void)image_bytes); image_bytes = null }
+    mime_open = false; mime_owner = 0
+}

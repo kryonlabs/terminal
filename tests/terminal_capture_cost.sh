@@ -4,7 +4,7 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS ENV BASH_ENV
-export YUE_DESKTOP_RECOVERY=0
+export HARMONY_DESKTOP_RECOVERY=0
 work="$root/build/ziran/capture-cost"
 mkdir -p "$work"
 exec 9>"$work/check.lock"

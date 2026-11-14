@@ -84,6 +84,7 @@ Session :: struct {
     command: [1024]u8
     title: [128]u8
     title_override: bool
+    read_only: bool
     initialized: bool
 }
 

@@ -1,6 +1,7 @@
 // Storage reuse must behave exactly like a newly allocated detached engine,
 // including full-parser controls, later PTY feeds and source/view reflow.
 #import "terminal";
+ClipboardHost :: #import "terminal_clipboard_host";
 Capture :: #import "terminal_capture_test";
 libc :: #system_library "c";
 CompareRaw :: (left: *void, right: *void, count: usize) -> s32 #foreign libc "memcmp";

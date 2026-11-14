@@ -1,6 +1,7 @@
 // OS device facts and owned-window operations. Terminal behavior is in app_host.
 #scope_module
 Host :: #import "app_host";
+AppState :: #import "app_state";
 Launch :: #import "app_launch_options";
 Profile :: #import "terminal_pane_profile_types";
 Input :: #import "app_input";
@@ -31,7 +32,6 @@ MonitorHeight :: (monitor: s32) -> s32 #foreign raylib "GetMonitorHeight";
 MonitorPosition :: (monitor: s32) -> Geometry.Vector2 #foreign raylib "GetMonitorPosition";
 ShowCursor :: () #foreign raylib "ShowCursor";
 HideCursor :: () #foreign raylib "HideCursor";
-OpenURL :: (value: *u8) -> s32 #foreign sdl "SDL_OpenURL";
 VideoError :: () -> *u8 #foreign sdl "SDL_GetError";
 ModState :: () -> u32 #foreign sdl "SDL_GetModState";
 KeyboardFocus :: () -> *void #foreign sdl "SDL_GetKeyboardFocus";
@@ -251,21 +251,14 @@ Sample :: (session: Frames.Session, now: float64, down: []s32) -> Host.DeviceFra
     Device.TreeSecondaryPointerUpdate(session, Runtime.PollSecondaryPointer())
     result.focused = Runtime.RaylibFocused()
     Device.PointerWheelSend(session, pointer.x, pointer.y, Runtime.RaylibWheelMove())
-    // A modifier press must not consume the frame's key and discard a following
-    // shortcut. It still counts when released again within this same frame.
-    modifiers := Runtime.RaylibModifiers() | SDLModifiers(ModState())
+    // Kryon preserves key/text arrival order and attaches the modifiers held
+    // for the key when it was observed.
+    key, modifiers := Runtime.RaylibInputTake(session)
+    modifiers |= SDLModifiers(ModState())
     if pointer.pressed || pointer.down || pointer.released {
         modifiers |= PointerModifiers()
     }
-    key := Runtime.RaylibPressedKey()
-    for event: 0..511 {
-        unused event
-        if key < 340 || key > 347 { break }
-        modifiers |= Runtime.RaylibModifierBit(key)
-        key = Runtime.RaylibPressedKeyRaw()
-    }
     Device.KeyboardModifiersSend(session, modifiers)
-    if key == 0 { key = Runtime.RaylibRepeatedKey(); result.key_fresh = false }
     if key != 0 { Device.KeyboardSend(session, key) }
     count: s32
     for held: 1..511 {
@@ -274,19 +267,13 @@ Sample :: (session: Frames.Session, now: float64, down: []s32) -> Host.DeviceFra
         }
     }
     result.down = down[0:count]
-    codepoint := Runtime.RaylibTypedCodepoint()
-    while codepoint > 0 {
-        Device.TypedCodepointSend(session, codepoint)
-        codepoint = Runtime.RaylibTypedCodepoint()
-    }
     return result
 }
-Apply :: (result: Input.Result) {
+Apply :: (result: Input.Result, app: *AppState.State) {
     if result.cursor_changed {
         if result.cursor_hidden { HideCursor() } else { ShowCursor() }
     }
-    if result.hyperlink != "" {
-        bytes: [2048]u8
-        if CString.CopyCString(result.hyperlink, bytes[:]) { OpenURL(*bytes[0]) }
+    if app != null && app.fullscreen_toggle_requested {
+        Fullscreen(); app.fullscreen_toggle_requested = false
     }
 }

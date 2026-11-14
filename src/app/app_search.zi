@@ -5,7 +5,9 @@ Engine :: #import "terminal";
 Pane :: #import "terminal_pane_selection";
 Dialog :: #import "app_dialog";
 Text :: #import "std/text_buffer";
-using UI :: #import "kryon/Widgets";
+UI :: #import "kryon/key_input";
+Keys :: #import "kryon/tree_input";
+Codes :: #import "kryon/input_protocol";
 Frames :: #import "kryon/session";
 
 #scope_export
@@ -31,9 +33,9 @@ Find :: (app: *State.State) -> bool {
 }
 Draw :: (session: Frames.Session, app: *State.State) {
     if app == null || !app.search_visible { return }
-    key := UI.KeyboardTake(session)
-    modifiers := UI.KeyboardModifiers(session)
-    if (modifiers & UI.KeyModifierControl) != 0 && (modifiers & UI.KeyModifierShift) != 0 {
+    key := Keys.KeyboardTake(session)
+    modifiers := Keys.KeyboardModifiers(session)
+    if (modifiers & Codes.KeyModifierControl) != 0 && (modifiers & Codes.KeyModifierShift) != 0 {
         if key == #char "G" { FindDirection(app, 1); app.search_focused = true }
         else if key == #char "B" { FindDirection(app, -1); app.search_focused = true }
     }
