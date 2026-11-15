@@ -5,6 +5,7 @@ Pane :: #import "terminal_pane_session";
 Types :: #import "terminal_pane_profile_types";
 Text :: #import "std/byte_text_linux";
 Numbers :: #import "std/number_text";
+Files :: #import "std/file_linux";
 libc :: #system_library "c";
 EnvironmentHost :: (name: *s8) -> *s8 #foreign libc "getenv";
 HostnameHost :: (output: *s8, capacity: usize) -> s32 #foreign libc "gethostname";
@@ -72,6 +73,35 @@ SetShellTitle :: (session: *Session, value: string) -> bool {
     Append(session.title[:], *used,
         DisplayDirectory(value[path:value.count], Text.TextFromCString(*home[0])))
     return true
+}
+
+// A launcher can name a folder that is gone, a file, or a path carrying its
+// own shell quotes. The shell could not enter it and the window would close,
+// so start in the home folder instead and say why.
+StartDirectory :: (requested: string, output: []u8) -> string {
+    if requested == "" || Files.DirectoryExists(requested) { return CopyText(output, requested) }
+    home: [1024]u8
+    fallback := Environment("HOME", home[:])
+    if fallback == "" || !Files.DirectoryExists(fallback) { fallback = "/" }
+    return CopyText(output, fallback)
+}
+
+// The path is quoted, so quotes that are part of it stay visible.
+ReportStartDirectory :: (session: *Session, requested: string, started: string) {
+    notice: [2304]u8
+    used: s64
+    Append(notice[:], *used, "Terminal: working directory \"")
+    Append(notice[:], *used, requested)
+    Append(notice[:], *used, ifx Files.PathExists(requested) then "\" is not a folder" else "\" does not exist")
+    Append(notice[:], *used, "; starting in ")
+    Append(notice[:], *used, started)
+    Append(notice[:], *used, "\n")
+    // One line for the launcher's log, and the same notice above the prompt.
+    diagnostic: Files.FileHandle = .{2, true}
+    Files.Write(diagnostic, notice[0:used])
+    Engine.terminal_feed(*session.terminal, cast(*void)(*notice[0]), cast(s32)(used - 1))
+    ending := "\r\n"
+    Engine.terminal_feed(*session.terminal, cast(*void)Bytes(ending), cast(s32)ending.count)
 }
 
 #scope_export
@@ -145,13 +175,15 @@ Open :: (session: *Session, cwd: string, shell: string, command: string,
     CopyText(directory[:], cwd); CopyText(executable[:], shell); CopyText(script[:], command)
     Close(session)
     Init(session)
-    CopyText(session.cwd[:], Text.TextFromCString(*directory[0]))
+    requested := Text.TextFromCString(*directory[0])
+    started := StartDirectory(requested, session.cwd[:])
     CopyText(session.shell[:], Text.TextFromCString(*executable[0]))
     CopyText(session.command[:], Text.TextFromCString(*script[0]))
     SetDefaultTitle(session)
     opened := Engine.terminal_spawn(*session.terminal, *session.cwd[0],
         *session.shell[0], *session.command[0], cols, rows) != 0
     Engine.terminal_set_scrollback_limit(*session.terminal, scrollback_limit)
+    if started != requested { ReportStartDirectory(session, requested, started) }
     if !opened {
         message := "Could not start shell\r\n"
         Engine.terminal_feed(*session.terminal, cast(*void)Bytes(message), cast(s32)message.count)

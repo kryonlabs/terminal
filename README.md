@@ -181,6 +181,11 @@ command-line specs. `--drop-down` starts a borderless top-of-screen terminal
 window. `--window` is accepted as a separator and currently opens another tab
 because Terminal does not have multi-window process/server support yet.
 
+A working directory that is missing, a file, or cannot be entered starts the
+shell in the home folder with a notice instead. A Thunar custom action
+writes `terminal --working-directory=%f`: Thunar quotes `%f` itself, so
+quotes around it become part of the path.
+
 Config is read from `$XDG_CONFIG_HOME/terminal/config` or
 `~/.config/terminal/config`:
 
@@ -251,6 +256,8 @@ case-insensitively; queries containing uppercase letters are case-sensitive.
 Mouse selection keeps a local primary selection for the terminal; middle click
 pastes that selection before falling back to the system clipboard, and the
 right-click menu exposes both clipboard paste and primary-selection paste.
+Right-click on selected text copies it to the clipboard instead; with nothing
+selected, or with Shift held, right-click opens the menu.
 Copied soft-wrapped lines are joined without adding artificial newlines.
 Bracketed paste wraps pasted text and strips embedded terminal control
 sequences so copied text cannot break out of the paste bracket.

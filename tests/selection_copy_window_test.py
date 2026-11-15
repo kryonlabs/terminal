@@ -1,4 +1,4 @@
-"""PRIMARY publication and xfce-style selection menu on private Xvfb."""
+"""PRIMARY publication, right-click copy and xfce-style menu on private Xvfb."""
 import os
 from pathlib import Path
 import shlex
@@ -68,6 +68,10 @@ def main():
         def xdo(*args):
             return subprocess.run(['xdotool', *map(str, args)], env=env, text=True, capture_output=True,
                                   check=True, timeout=5).stdout.strip()
+
+        def shift_right_click():
+            xdo('keydown', 'Shift_L'); xdo('mousedown', '3'); time.sleep(.1)
+            xdo('mouseup', '3'); xdo('keyup', 'Shift_L'); time.sleep(.2)
         with (root / 'window.log').open('w') as log:
             app = subprocess.Popen([binary, '--hide-menubar', '--hide-toolbar', '--geometry', f'{COLUMNS}x{ROWS}',
                                     '--shell', str(shell), '-e', 'python3 ' + shlex.quote(str(child))],
@@ -111,31 +115,36 @@ def main():
                 wait(lambda: selection(env, 'clipboard') == OAUTH,
                      'Keyboard copy did not preserve the exact wrapped OAuth URL')
 
-                # Copy Link Address is row two in the link-aware menu. Each menu
-                # copy starts from a fresh owner, so its check waits for that
-                # copy instead of passing on the previous one.
+                # Shift+right-click opens the link-aware menu on a selection.
+                # Copy is the first row after the link actions and open rows.
+                # Each menu copy starts from a fresh owner, so its check waits
+                # for that copy instead of passing on the previous one.
+                owner = subprocess.Popen(['xclip','-quiet','-selection','clipboard','-in'],env=env,
+                                         stdin=subprocess.PIPE,stdout=log,stderr=log)
+                owners.append(owner); owner.stdin.write(b'copy sentinel'); owner.stdin.close(); time.sleep(.2)
+                assert selection(env, 'clipboard') == 'copy sentinel'
+                xdo('mousemove', '--window', window, int(cell * 2.5), int(line * 2.5))
+                shift_right_click()
+                xdo('mousemove', '--window', window, int(cell * 2.5) + 60, 160)
+                xdo('mousedown', '1'); time.sleep(.12); xdo('mouseup', '1')
+                wait(lambda: selection(env, 'clipboard') == OAUTH,
+                     'Shift+right-click menu Copy did not preserve the exact wrapped OAuth selection')
+
+                # A plain click leaves no chosen selection, so right-click opens
+                # the menu. Copy Link Address is row two in the link-aware menu.
+                xdo('mousemove', '--window', window, int(cell * 20), int(line * 6.5))
+                xdo('mousedown', '1'); time.sleep(.12); xdo('mouseup', '1'); time.sleep(.6)
                 owner = subprocess.Popen(['xclip','-quiet','-selection','clipboard','-in'],env=env,
                                          stdin=subprocess.PIPE,stdout=log,stderr=log)
                 owners.append(owner); owner.stdin.write(b'link sentinel'); owner.stdin.close(); time.sleep(.2)
                 assert selection(env, 'clipboard') == 'link sentinel'
                 xdo('mousemove', '--window', window, int(cell * 2.5), int(line * 2.5))
                 xdo('mousedown', '3'); time.sleep(.1); xdo('mouseup', '3'); time.sleep(.2)
+                assert selection(env, 'clipboard') == 'link sentinel', 'Right-click after a plain click copied'
                 xdo('mousemove', '--window', window, int(cell * 2.5) + 60, 43)
                 xdo('mousedown', '1'); time.sleep(.12); xdo('mouseup', '1')
                 wait(lambda: selection(env, 'clipboard') == OAUTH,
                      'Context-menu Copy Link changed the wrapped OAuth URL')
-
-                # Copy is the first row after the link actions and open rows.
-                owner = subprocess.Popen(['xclip','-quiet','-selection','clipboard','-in'],env=env,
-                                         stdin=subprocess.PIPE,stdout=log,stderr=log)
-                owners.append(owner); owner.stdin.write(b'copy sentinel'); owner.stdin.close(); time.sleep(.2)
-                assert selection(env, 'clipboard') == 'copy sentinel'
-                xdo('mousemove', '--window', window, int(cell * 2.5), int(line * 2.5))
-                xdo('mousedown', '3'); time.sleep(.1); xdo('mouseup', '3'); time.sleep(.2)
-                xdo('mousemove', '--window', window, int(cell * 2.5) + 60, 160)
-                xdo('mousedown', '1'); time.sleep(.12); xdo('mouseup', '1')
-                wait(lambda: selection(env, 'clipboard') == OAUTH,
-                     'Context-menu Copy did not preserve the exact wrapped OAuth selection')
 
                 owner = subprocess.Popen(['xclip','-quiet','-selection','clipboard','-in'],env=env,
                                          stdin=subprocess.PIPE,stdout=log,stderr=log)
@@ -151,17 +160,17 @@ def main():
                      lambda: f'Selection did not publish PRIMARY: {selection(env, "primary")!r}')
                 assert selection(env, 'clipboard') == 'clipboard sentinel', 'Selecting alone replaced CLIPBOARD'
 
+                # Right-click on a selection copies it to CLIPBOARD, keeps
+                # PRIMARY and opens no menu: typed text still reaches the shell.
                 xdo('mousedown', '3'); time.sleep(.1); xdo('mouseup', '3')
-                time.sleep(.25)
-                assert selection(env, 'clipboard') == 'clipboard sentinel', 'Right-click copied without a menu action'
-                assert selection(env, 'primary') == 'beta', 'Right-click cleared PRIMARY selection'
-                # The menu is taller than this window and is clamped to its
-                # top. Copy is the first row after three open actions.
-                xdo('mousemove', '--window', window, int(cell * 9.5) + 60, 104)
-                xdo('mousedown', '1'); time.sleep(.12); xdo('mouseup', '1')
                 wait(lambda: selection(env, 'clipboard') == 'beta',
-                     lambda: f'Menu Copy did not copy exactly beta: {selection(env, "clipboard")!r}', 2)
-                assert selection(env, 'primary') == 'beta', 'Menu Copy cleared selection PRIMARY'
+                     lambda: f'Right-click did not copy exactly beta: {selection(env, "clipboard")!r}', 2)
+                assert selection(env, 'primary') == 'beta', 'Right-click cleared PRIMARY selection'
+                before = incoming.stat().st_size
+                xdo('type', 'z')
+                data = wait(lambda: incoming.read_bytes() if incoming.stat().st_size > before else None,
+                            'Right-click on a selection opened a menu that took the keyboard')
+                assert data[before:] == b'z', data[before:]
 
                 # Re-select before testing the independent HTML action; a menu
                 # activation must not make that action depend on stale UI state.
@@ -177,9 +186,10 @@ def main():
                 time.sleep(.1); xdo('mouseup', '1')
                 wait(lambda: selection(env, 'primary') == 'beta', 'Second selection did not publish PRIMARY')
 
-                # Copy as HTML owns both safe plain text and escaped HTML.
+                # Copy as HTML, from the Shift+right-click menu, owns both safe
+                # plain text and escaped HTML.
                 xdo('mousemove', '--window', window, int(cell * 8), y)
-                xdo('mousedown', '3'); time.sleep(.1); xdo('mouseup', '3'); time.sleep(.2)
+                shift_right_click()
                 xdo('mousemove', '--window', window, int(cell * 8) + 60, 130)
                 xdo('mousedown', '1'); time.sleep(.12); xdo('mouseup', '1')
                 def clipboard_html():
@@ -214,7 +224,7 @@ def main():
                     owner.wait(timeout=5)
                 if app.poll() is None:
                     app.terminate(); app.wait(timeout=5)
-        print('Terminal publishes PRIMARY, keeps selection on right-click, serves plain+HTML menu copies, and pastes external PRIMARY only')
+        print('Terminal publishes PRIMARY, copies a selection on right-click, opens the menu without one or with Shift, serves plain+HTML menu copies, and pastes external PRIMARY only')
 
 
 if __name__ == '__main__':

@@ -96,6 +96,23 @@ Contains :: (keys: []s32, key: s32) -> bool {
     for index: cast(s64)0..keys.count - 1 { if keys[index] == key { return true } }
     return false
 }
+// A plain click leaves the one cell under it selected. That is not text the
+// user chose, so it does not count as a selection for right-click.
+ChosenSelection :: (app: *State.State) -> bool {
+    selection := *app.selection
+    if selection.active == 0 { return false }
+    return selection.mode != Select.TERMINAL_PANE_SELECTION_CHAR || app.selection_click_count > 1 ||
+        selection.start_row != selection.end_row || selection.end_col - selection.start_col > 1
+}
+
+// Right-click on a selection copies it to CLIPBOARD and leaves the selection
+// and PRIMARY as they are. With no selection, or with Shift held, it opens
+// the context menu, so menu actions stay reachable while text is selected.
+RightClickCopies :: (app: *State.State, keyboard: Keys.KeyboardFrame) -> bool {
+    if !ChosenSelection(app) || (keyboard.mods & Keys.TERMINAL_PANE_MOD_SHIFT) != 0 { return false }
+    return Clipboard.CopySelection(app)
+}
+
 LinkModifiers :: (keyboard: Keys.KeyboardFrame) -> bool {
     if (keyboard.mods & (Keys.TERMINAL_PANE_MOD_ALT | Keys.TERMINAL_PANE_MOD_CTRL)) != 0 { return true }
     return Contains(keyboard.keys, 341) || Contains(keyboard.keys, 342) ||
@@ -338,9 +355,11 @@ Handle :: (app: *State.State, frame: Frame, persist: bool = true) -> Result {
             HandleSelection(app, session, frame)
         }
         if Inside(app, frame) && frame.right.released {
-            app.context_menu_open = true; app.context_menu_x = cast(s32)frame.x; app.context_menu_y = cast(s32)frame.y
-            app.context_link[0] = 0
-            if target != "" { Session.CopyText(app.context_link[:], target) }
+            if !RightClickCopies(app, frame.keyboard) {
+                app.context_menu_open = true; app.context_menu_x = cast(s32)frame.x; app.context_menu_y = cast(s32)frame.y
+                app.context_link[0] = 0
+                if target != "" { Session.CopyText(app.context_link[:], target) }
+            }
         }
     }
     if !app.context_menu_open { result.wrote = PumpKeyboard(app, frame.keyboard, persist) }

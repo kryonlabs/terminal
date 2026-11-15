@@ -95,6 +95,31 @@ IsBash :: (path: *u8) -> bool {
     return value[start:] == "bash"
 }
 
+// A folder that exists but cannot be entered must not end the session before
+// the shell starts: say so on the terminal and start in HOME, or else in /.
+EnterFallback :: (cwd: *u8) {
+    error := ErrorPointer().*
+    reason := "\" cannot be entered"
+    if error == 13 { reason = "\": permission denied" }
+    else if error == 2 { reason = "\" does not exist" }
+    else if error == 20 { reason = "\" is not a folder" }
+    started := Environment("HOME")
+    if started == null || started[0] == 0 || ChangeDirectory(cast(*s8)started) != 0 {
+        started = cast(*u8)Bytes("/")
+        ChangeDirectory(Bytes("/"))
+    }
+    Notice("Terminal: working directory \"")
+    Notice(RawText(cwd))
+    Notice(reason)
+    Notice("; starting in ")
+    Notice(RawText(started))
+    Notice("\n")
+}
+
+Notice :: (text: string) {
+    if text.count > 0 { WriteHost(2, cast(*void)Bytes(text), cast(usize)text.count) }
+}
+
 RunChild :: (master: s32, cwd: *u8, shell: *u8, command: *u8) {
     name := PTYName(master)
     path: [256]u8
@@ -106,7 +131,7 @@ RunChild :: (master: s32, cwd: *u8, shell: *u8, command: *u8) {
     Ioctl(slave, 0x540e, null)
     if Duplicate(slave, 0) < 0 || Duplicate(slave, 1) < 0 || Duplicate(slave, 2) < 0 { Exit(127); return }
     if slave > 2 { Close(slave) }
-    if cwd != null && cwd[0] != 0 && ChangeDirectory(cast(*s8)cwd) != 0 { Exit(127); return }
+    if cwd != null && cwd[0] != 0 && ChangeDirectory(cast(*s8)cwd) != 0 { EnterFallback(cwd) }
     SetEnvironment(Bytes("TERM"), Bytes("xterm-256color"), 1)
     SetEnvironment(Bytes("COLORTERM"), Bytes("truecolor"), 1)
     SanitizePath()

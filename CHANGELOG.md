@@ -13,13 +13,20 @@
   back to text, while Ctrl+Shift+V and the Paste menu action stay text-only.
 - Match the xfce4-terminal 1.1.4 right-click menu, including link and email
   actions, Copy as HTML, open/save actions, checked state, signals, zoom
-  accelerators, and preferences. Right-click preserves the selection and does
-  not copy until a copy action is chosen.
+  accelerators, and preferences. Right-click on selected text copies it to the
+  clipboard and keeps the selection and PRIMARY; with nothing selected, or
+  with Shift held, right-click opens the menu.
 - Alt-click also opens email addresses, and links open through Kryon in both
   standalone and embedded Terminal windows.
 - `make install` also installs the Xfce TerminalEmulator helper, so Thunar's
   Open Terminal Here and `exo-open --launch TerminalEmulator` start this
   terminal in the selected folder, and Exo launch commands run through `-x`.
+- A working directory that is missing, a file, or cannot be entered no
+  longer closes the window as soon as it opens: the shell starts in the home
+  folder and Terminal says why (missing, not a folder, or not permitted), on
+  the terminal and on standard error. Thunar custom actions pass
+  `--working-directory=%f` without extra quotes, because Thunar quotes `%f`
+  itself.
 
 ## [0.1.0] - 2026-11-13
 

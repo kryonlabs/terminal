@@ -66,6 +66,7 @@ jobs:
             cmake \
             git \
             curl \
+            dbus \
             desktop-file-utils \
             dpkg-dev \
             exo-utils \
@@ -81,6 +82,7 @@ jobs:
             pkg-config \
             ripgrep \
             tesseract-ocr \
+            thunar \
             xauth \
             xdotool \
             x11-apps \
