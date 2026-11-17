@@ -160,12 +160,14 @@ def main():
                      lambda: f'Selection did not publish PRIMARY: {selection(env, "primary")!r}')
                 assert selection(env, 'clipboard') == 'clipboard sentinel', 'Selecting alone replaced CLIPBOARD'
 
-                # Right-click on a selection copies it to CLIPBOARD, keeps
+                # Right-click on a selection copies it to CLIPBOARD, clears its highlight, keeps
                 # PRIMARY and opens no menu: typed text still reaches the shell.
                 xdo('mousedown', '3'); time.sleep(.1); xdo('mouseup', '3')
                 wait(lambda: selection(env, 'clipboard') == 'beta',
                      lambda: f'Right-click did not copy exactly beta: {selection(env, "clipboard")!r}', 2)
                 assert selection(env, 'primary') == 'beta', 'Right-click cleared PRIMARY selection'
+                wait(lambda: window_rows(window, env, 0, TEXT_ROW) == baseline,
+                     'Right-click left highlighted cells after copying')
                 before = incoming.stat().st_size
                 xdo('type', 'z')
                 data = wait(lambda: incoming.read_bytes() if incoming.stat().st_size > before else None,

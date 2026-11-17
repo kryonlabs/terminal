@@ -105,12 +105,14 @@ ChosenSelection :: (app: *State.State) -> bool {
         selection.start_row != selection.end_row || selection.end_col - selection.start_col > 1
 }
 
-// Right-click on a selection copies it to CLIPBOARD and leaves the selection
-// and PRIMARY as they are. With no selection, or with Shift held, it opens
+// Right-click on a selection copies it to CLIPBOARD and clears the highlight.
+// PRIMARY keeps its published text. With no selection, or with Shift held, it opens
 // the context menu, so menu actions stay reachable while text is selected.
 RightClickCopies :: (app: *State.State, keyboard: Keys.KeyboardFrame) -> bool {
     if !ChosenSelection(app) || (keyboard.mods & Keys.TERMINAL_PANE_MOD_SHIFT) != 0 { return false }
-    return Clipboard.CopySelection(app)
+    if !Clipboard.CopySelection(app) { return false }
+    app.selection.active = 0; app.selection.dragging = 0
+    return true
 }
 
 LinkModifiers :: (keyboard: Keys.KeyboardFrame) -> bool {
@@ -350,7 +352,7 @@ Handle :: (app: *State.State, frame: Frame, persist: bool = true) -> Result {
         }
         if session.terminal.mouse_mode == 0 && Inside(app, frame) && frame.middle.pressed { Clipboard.PastePrimary(app, session) }
         // A secondary-button gesture owns this frame. It may open the menu,
-        // but it must never move or collapse the existing selection.
+        // and leaves selection changes to the copy action.
         if !frame.right.down && !frame.right.pressed && !frame.right.released {
             HandleSelection(app, session, frame)
         }

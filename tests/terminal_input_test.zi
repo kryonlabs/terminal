@@ -205,11 +205,13 @@ CheckSelectionAndScroll :: () -> bool {
     Clipboard.FlushToHost(*app.sessions[0])
     if app.context_menu_open { return Failure("Right-click on a selection opened the menu") }
     if Host.HostClipboardText() != "beta" { return Failure("Right-click on a selection did not copy it to CLIPBOARD") }
-    if Host.write_count != 1 || app.selection.active == 0 || app.selection.dragging != 0 {
-        return Failure("Right-click on a selection copied more than once or changed the selection")
+    if Host.write_count != 1 || app.selection.active != 0 || app.selection.dragging != 0 {
+        return Failure("Right-click on a selection must copy once and clear the selection")
     }
     // Shift+right-click opens the menu instead, so its actions still work on
     // a selection, and it neither copies nor clears it.
+    frame.now = 1.2
+    Input.Handle(app, frame, false)
     Host.HostClipboardReset("kept")
     shifted := copy_frame; shifted.keyboard.mods = Keys.TERMINAL_PANE_MOD_SHIFT
     Input.Handle(app, shifted, false)
