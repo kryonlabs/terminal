@@ -51,7 +51,7 @@ def in_order(text, phrases):
 
 def screenshot_text(window, env, root):
     image = root / 'context-menu.png'
-    subprocess.run(['import', '-window', window, '-resize', '200%', str(image)], env=env,
+    subprocess.run(['import', '-window', window, '-resize', '400%', str(image)], env=env,
                    check=True, timeout=5, stdout=subprocess.DEVNULL,
                    stderr=subprocess.DEVNULL)
     result = subprocess.run(['tesseract', str(image), 'stdout', '--psm', '4'],
@@ -128,7 +128,8 @@ def main():
                 zoom = wait(rendered(('zoom in', 'zoom out', 'normal size')),
                             'Zoom submenu was not rendered')
                 assert in_order(zoom, ('zoom in', 'zoom out', 'normal size')), zoom
-                assert zoom.count('ctrl') >= 3, zoom
+                # OCR reads the monospaced "Ctrl" as "ctr1" at some sizes.
+                assert len(re.findall(r'ctr[l1i]', zoom)) >= 3, zoom
                 close_window(window, app.pid, env)
                 assert app.wait(timeout=5) == 0
             finally:

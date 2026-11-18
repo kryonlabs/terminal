@@ -457,7 +457,10 @@ PumpTerminalPaneKeyboardInputFiltered :: (input: TerminalPaneInput,
             if down && (queued[key] || input.state.last_control_keys[key] == 0) {
                 if InputCodepoint(input, codepoint, frame.mods) != 0 { control_wrote = true }
             }
-            input.state.last_control_keys[key] = ifx down then 1 else 0
+            // A press a shortcut consumed stays delivered until the key is
+            // released, so a held shortcut key never also types its control
+            // byte in a later frame.
+            input.state.last_control_keys[key] = ifx down || blocked[key] then 1 else 0
         }
         if control_wrote { return 1 }
     } else if input.state != null {

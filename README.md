@@ -16,10 +16,9 @@ make install
 
 The application, terminal engine, pane and shared application host are
 maintained in Ziran. `make` generates native C from the current `.zi`
-entrypoint and links Kryon's Raylib backend over SDL2. The build needs a C
-compiler, CMake, pkg-config, SDL2, WebP and OpenGL development files. Raylib's source
-is resolved from the Git-backed package lock. Builds default to one job;
-`TERMINAL_BUILD_JOBS` may select up to four.
+entrypoint and links Kryon's desktop host: an SDL2 window drawn with Cairo and
+Pango. The build needs a C compiler, pkg-config, and the SDL2, Cairo, Pango,
+GTK 3, WebP, X11 and XCB development files.
 
 `standalone-window-test` runs the actual executable on a private Xvfb display.
 It checks CLI routes, a rendered window, real child-process input, held and
@@ -143,9 +142,8 @@ ziran = "../../ziranlang/ziran"
 kryon = "../../kryonlabs/kryon"
 ```
 
-Additional source-package overrides, such as Kryon's `raylib` dependency,
-may point to an existing local package checkout. Local overrides do not
-belong in the manifest or release artifacts.
+Additional source-package overrides may point to an existing local package
+checkout. Local overrides do not belong in the manifest or release artifacts.
 
 Run options:
 

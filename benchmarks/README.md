@@ -263,7 +263,7 @@ Current command-line compatibility coverage:
 | `--title`, `-T` | implemented as the initial tab/window title and per-tab title |
 | `--hold`, `-H` | accepted; ktrem already keeps command sessions visible after child exit |
 | `--geometry COLSxROWS` | implemented for initial terminal grid estimate and window size |
-| `--fullscreen`, `--maximize` | implemented through Kryon/raylib window state |
+| `--fullscreen`, `--maximize` | implemented through Kryon desktop window state |
 | `--drop-down` | implemented for first-run borderless top-of-screen window shape |
 | `--show-menubar`, `--hide-menubar` | accepted; ktrem has fixed minimal chrome today |
 | `--show-toolbar`, `--hide-toolbar` | accepted; no separate toolbar exists today |

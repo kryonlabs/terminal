@@ -44,6 +44,8 @@ Draw :: (session: Sessions.Session, key: u64, title: string, action: string,
     frame_props.width = cast(s32)(420.0 * scale); frame_props.height = cast(s32)(160.0 * scale)
     frame_props.scale = scale
     frame_props.has_right_action = true; frame_props.right_label = "Close"
+    // A click outside closes the dialog, as the terminal's dialogs always have.
+    frame_props.dismiss_on_outside = true
     frame := Modal.Draw(session, frame_props)
     if frame.dismissed || frame.right_clicked { return 1 }
     if !frame.opened { return 0 }

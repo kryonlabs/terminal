@@ -82,7 +82,7 @@ cursor-blink-window-test: $(APP)
 		env TERMINAL_PRIVATE_XVFB=1 python3 tests/cursor_blink_window_test.py "$(APP)"
 
 standalone-test: $(APP)
-	ZIRAN="$(ZIRAN)" RAYLIB_A="$(if $(RAYLIB_A),$(RAYLIB_A),$(abspath $(BUILD_DIR))/raylib/raylib/libraylib.a)" sh tests/standalone_test.sh
+	ZIRAN="$(ZIRAN)" sh tests/standalone_test.sh
 
 parser-replay:
 	ZIRAN="$(ZIRAN)" sh scripts/parser-replay.sh

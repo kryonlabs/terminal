@@ -19,25 +19,13 @@ generated=$output/generated
 "$ziran" build --project $lock_flags --target="$target" --no-main --prune-stale \
     --root src -o "$generated" "$input"
 
-jobs=${TERMINAL_BUILD_JOBS:-1}
-case "$jobs" in 1|2|3|4) ;; *) echo 'TERMINAL_BUILD_JOBS must be between 1 and 4' >&2; exit 2 ;; esac
-if test -n "${RAYLIB_A:-}"; then
-    raylib_archive=$RAYLIB_A
-else
-    raylib=$("$ziran" pkg path raylib $lock_flags)
-    cmake -S "$raylib" -B "$output/raylib" -DPLATFORM=SDL \
-        -DCMAKE_DISABLE_FIND_PACKAGE_SDL3=ON -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_EXAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-    cmake --build "$output/raylib" --parallel "$jobs"
-    raylib_archive=$output/raylib/raylib/libraylib.a
-fi
-test -f "$raylib_archive"
 mkdir -p "$output/bin"
 temporary=$(mktemp "$output/bin/terminal.XXXXXX")
 trap 'rm -f "$temporary"' EXIT HUP INT TERM
 "${CC:-cc}" -std=c11 -O1 -ffunction-sections -fdata-sections \
-    -I"$generated" "$generated"/*.c -Wl,--gc-sections "$raylib_archive" \
-    $(pkg-config --libs sdl2 libwebpdemux libwebp gtk+-3.0 x11 xcb) -lGL -ldl -lpthread -lm -o "$temporary"
+    -I"$generated" "$generated"/*.c -Wl,--gc-sections \
+    $(pkg-config --libs sdl2 cairo pangocairo fontconfig freetype2 glib-2.0 libwebpdemux libwebp gtk+-3.0 x11 xcb) \
+    -ldl -lpthread -lm -o "$temporary"
 chmod 755 "$temporary"
 mv "$temporary" "$output/bin/terminal"
 trap - EXIT HUP INT TERM

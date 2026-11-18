@@ -2,9 +2,21 @@
 
 ## [Unreleased]
 
+- Run on Kryon's desktop host instead of raylib: the window, PTY-aware
+  activity waits, frame pacing, fullscreen, monitor placement, dropped files
+  and typefaces come from `desktop_runtime`, `desktop_window_state`,
+  `desktop_keyboard`, `desktop_activity` and `cairo_typefaces`. Builds need no
+  CMake raylib step. Pins Kryon b5a61b37 with Ziran 7fbc8152.
+- Keep the Find and other text dialogs closing on an outside click under
+  Kryon's modals, which now stay open unless they opt in.
+- Keep every button press, release and wheel step that arrives while the
+  terminal waits on its shells, at the cell where the press happened, so
+  quick clicks and drags select from the right place.
+- A Ctrl shortcut that a key press triggered (such as Ctrl+V paste) no longer
+  also types its control byte while the key is still held.
 - Keep captured terminal rows in their own colors when reflowing or resizing,
   so a colored diff or status row cannot flood later blank rows.
-- Consume Kryon's ordered per-session Raylib key and text delivery.
+- Consume Kryon's ordered per-session key and text delivery.
 - Build against Kryon's package-qualified widget imports (`kryon/menu`,
   `kryon/context_menu`, `kryon/tab_bar`, `kryon/text_field` and others) now that
   the `Widgets` facade and `*_props` modules are gone.

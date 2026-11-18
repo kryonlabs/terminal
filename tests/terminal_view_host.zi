@@ -20,6 +20,13 @@ MeasureGlyphLineHeight :: (font: s32, typeface: string) -> s32 {
     unused font; unused typeface
     return 12
 }
+// The tests draw no picture cursors; the desktop raster decodes them in the app.
+#program_export
+CursorPictureHost :: (asset_path: string, width: s32, height: s32,
+    pixels: []u32, premultiplied: bool) -> bool {
+    unused asset_path; unused width; unused height; unused pixels; unused premultiplied
+    return false
+}
 #program_export
 RasterText :: (value: string, x: s32, y: s32, font: s32, color: Color) {
     unused x; unused y; unused font; unused color

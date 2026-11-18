@@ -16,22 +16,17 @@ Environment :: (name: *s8) -> *s8 #foreign libc "getenv";
 MemoryCopy :: (target: *void, source: *void, count: usize) -> *void #foreign libc "memcpy";
 DlOpen :: (name: *u8, flags: s32) -> *void #foreign dl "dlopen";
 DlSymbol :: (handle: *void, name: *u8) -> *void #foreign dl "dlsym";
-Runtime :: #import "kryon/Raylib";
+Runtime :: #import "kryon/desktop_runtime";
+WindowState :: #import "kryon/desktop_window_state";
+Keys :: #import "kryon/desktop_keyboard";
+Activity :: #import "kryon/desktop_activity";
+Typefaces :: #import "kryon/cairo_typefaces";
+Raster :: #import "kryon/Cairo";
 Files :: #import "std/file_linux";
 Clock :: #import "std/timer_linux";
-raylib :: #system_library "raylib";
 sdl :: #system_library "SDL2";
-SetTraceLevel :: (level: s32) #foreign raylib "SetTraceLogLevel";
-Maximize :: () #foreign raylib "MaximizeWindow";
-Fullscreen :: () #foreign raylib "ToggleFullscreen";
-SetWindowSize :: (width: s32, height: s32) #foreign raylib "SetWindowSize";
-SetWindowPosition :: (x: s32, y: s32) #foreign raylib "SetWindowPosition";
-CurrentMonitor :: () -> s32 #foreign raylib "GetCurrentMonitor";
-MonitorWidth :: (monitor: s32) -> s32 #foreign raylib "GetMonitorWidth";
-MonitorHeight :: (monitor: s32) -> s32 #foreign raylib "GetMonitorHeight";
-MonitorPosition :: (monitor: s32) -> Geometry.Vector2 #foreign raylib "GetMonitorPosition";
-ShowCursor :: () #foreign raylib "ShowCursor";
-HideCursor :: () #foreign raylib "HideCursor";
+PlaceWindow :: (window: *void, x: s32, y: s32) #foreign sdl "SDL_SetWindowPosition";
+CursorShown :: (toggle: s32) -> s32 #foreign sdl "SDL_ShowCursor";
 VideoError :: () -> *u8 #foreign sdl "SDL_GetError";
 ModState :: () -> u32 #foreign sdl "SDL_GetModState";
 KeyboardFocus :: () -> *void #foreign sdl "SDL_GetKeyboardFocus";
@@ -43,10 +38,8 @@ FnQueryPointer :: #type (*void, u64, *u64, *u64, *s32, *s32, *s32, *s32, *u32) -
 x_display: *void;
 x_window: u64;
 x_query_pointer: FnQueryPointer;
-DroppedFiles :: struct { count: u32; paths: **u8; }
-HasDroppedFiles :: () -> bool #foreign raylib "IsFileDropped";
-LoadDroppedFiles :: () -> DroppedFiles #foreign raylib "LoadDroppedFiles";
-UnloadDroppedFiles :: (files: DroppedFiles) #foreign raylib "UnloadDroppedFiles";
+ShowCursor :: () { unused CursorShown(1) }
+HideCursor :: () { unused CursorShown(0) }
 
 BindX11 :: () {
     x_display = null; x_window = 0
@@ -111,15 +104,12 @@ Number :: (name: string, fallback: s32, maximum: s32) -> s32 {
 }
 
 #scope_export
-// Raylib owns the OS drop payload until UnloadDroppedFiles.
+// The desktop host hands over one dropped path at a time.
 Drops :: (host: *Host.Host) -> bool {
-    if !HasDroppedFiles() { return false }
-    files := LoadDroppedFiles()
-    defer UnloadDroppedFiles(files)
     accepted: bool
-    if files.paths == null { return false }
-    for index: 0..cast(s32)files.count-1 {
-        if files.paths[index] != null && Host.DropPath(host, Text.TextFromCString(files.paths[index])) { accepted = true }
+    path: [4096]u8
+    while Runtime.DesktopTakeDroppedFile(path[:]) {
+        if Host.DropPath(host, Text.TextFromCString(*path[0])) { accepted = true }
     }
     return accepted
 }
@@ -157,20 +147,20 @@ BurstMilliseconds :: () -> s32 {
     return Number("KTREM_PTY_BURST_MS", fallback, 20)
 }
 Rate :: (fps: s32) {
-    Runtime.RaylibFrameRate(fps)
+    unused Runtime.DesktopFrameRate(fps)
 }
 ForwardToRill :: () -> bool {
     return false
 }
 Title :: (title: string) -> bool {
-    return Runtime.RaylibSetTitle(title)
+    return Runtime.DesktopSetTitle(title)
 }
 Open :: (launch: *Launch.LaunchOptions) -> bool {
-    flags: u32 = cast(u32)4
-    if launch.drop_down { flags |= cast(u32)(8 | 4096 | 256) }
-    else if !launch.show_borders { flags |= cast(u32)8 }
-    SetTraceLevel(4)
-    if !Runtime.OpenRaylib(Width(launch), Height(launch), "Terminal", flags) {
+    flags := cast(u32)Runtime.DesktopWindowResizable
+    if launch.drop_down {
+        flags |= cast(u32)(Runtime.DesktopWindowUndecorated | Runtime.DesktopWindowTopmost | Runtime.DesktopWindowAlwaysRun)
+    } else if !launch.show_borders { flags |= cast(u32)Runtime.DesktopWindowUndecorated }
+    if !Runtime.OpenDesktopWindow(Width(launch), Height(launch), "Terminal", flags) {
         failure := Text.TextFromCString(VideoError())
         if failure != "" {
             diagnostic: Files.FileHandle = .{2, true}
@@ -179,21 +169,20 @@ Open :: (launch: *Launch.LaunchOptions) -> bool {
         }
         return false
     }
-    Runtime.RaylibExitKey(0)
+    unused Runtime.DesktopExitKey(0)
     BindX11()
     if launch.drop_down {
-        monitor := CurrentMonitor()
-        width := MonitorWidth(monitor); height := MonitorHeight(monitor)
+        monitor := WindowState.DesktopMonitorBounds()
+        width := cast(s32)monitor.width; height := cast(s32)monitor.height
         if width <= 0 { width = Width(launch) }
         if height > 0 { height = height * 45 / 100 } else { height = 420 }
         if height < 280 { height = 280 }
         if height > 720 { height = 720 }
-        origin := MonitorPosition(monitor)
-        SetWindowSize(width, height)
-        SetWindowPosition(cast(s32)origin.x, cast(s32)origin.y)
+        unused Runtime.ResizeDesktop(width, height)
+        PlaceWindow(Runtime.DesktopWindow(), cast(s32)monitor.x, cast(s32)monitor.y)
     } else {
-        if launch.maximize { Maximize() }
-        if launch.fullscreen { Fullscreen() }
+        if launch.maximize { unused WindowState.DesktopMaximize() }
+        if launch.fullscreen { unused WindowState.DesktopToggleFullscreen() }
     }
     return true
 }
@@ -202,58 +191,99 @@ Open :: (launch: *Launch.LaunchOptions) -> bool {
 FitGeometry :: (launch: *Launch.LaunchOptions, size: Geometry.Vector2) {
     if launch == null || launch.drop_down || launch.fullscreen || launch.maximize ||
         launch.geometry_cols <= 0 || launch.geometry_rows <= 0 || size.x <= 0.0 || size.y <= 0.0 { return }
-    SetWindowSize(cast(s32)size.x, cast(s32)size.y)
+    unused Runtime.ResizeDesktop(cast(s32)size.x, cast(s32)size.y)
 }
 Close :: () {
     x_display = null; x_window = 0
-    ShowCursor(); Runtime.CloseRaylib()
+    ShowCursor(); Runtime.CloseDesktop()
 }
 LoadFont :: (config: *Profile.TerminalPaneProfileSettings) -> bool {
     path := Text.TextFromCString(*config.terminal_font[0])
-    if path != "" && Runtime.LoadTypefaceFile("Terminal", path, null, 0) {
-        return Runtime.SelectTypeface("Terminal")
+    if path != "" && Typefaces.LoadTypefaceFile("Terminal", path, null, 0) {
+        return Typefaces.SelectTypeface("Terminal")
     }
     paths: [3]string = .{"/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
         "/usr/share/fonts/opentype/urw-base35/NimbusMonoPS-Regular.otf"}
     for index: 0..2 {
-        if Runtime.LoadTypefaceFile("Terminal", paths[index], null, 0) {
-            return Runtime.SelectTypeface("Terminal")
+        if Typefaces.LoadTypefaceFile("Terminal", paths[index], null, 0) {
+            return Typefaces.SelectTypeface("Terminal")
         }
     }
     return false
 }
+// Each desktop poll reports only its own button edges and wheel steps, and
+// the loop polls several times per frame while it waits on the shells: keep
+// them until the frame that reads them.
+Edges :: struct { pressed: bool; released: bool; }
+pending_left: Edges;
+pending_right: Edges;
+pending_middle: Edges;
+pending_wheel: float32;
+// Where the first press since the last frame happened, so a drag that moved
+// on before the frame still starts at the pressed cell.
+pending_press: bool;
+pending_press_x: float32;
+pending_press_y: float32;
+Gather :: () {
+    left := Runtime.PollPointer(); right := Runtime.PollSecondaryPointer(); middle := Runtime.PollMiddlePointer()
+    if !pending_press && (left.pressed || right.pressed || middle.pressed) {
+        pending_press = true; pending_press_x = left.x; pending_press_y = left.y
+    }
+    pending_left.pressed = pending_left.pressed || left.pressed
+    pending_left.released = pending_left.released || left.released
+    pending_right.pressed = pending_right.pressed || right.pressed
+    pending_right.released = pending_right.released || right.released
+    pending_middle.pressed = pending_middle.pressed || middle.pressed
+    pending_middle.released = pending_middle.released || middle.released
+    pending_wheel += Runtime.DesktopWheelMove()
+}
 Poll :: () -> bool {
-    return Runtime.PollRaylib()
+    alive := Runtime.PollDesktop()
+    Gather()
+    return alive
 }
 // Sleeps without drawing until a shell writes or window input arrives.
 Wait :: (descriptors: []s32, seconds: float64) -> s32 {
-    return Runtime.RaylibWaitForActivity(descriptors, cast(s32)(seconds * 1000.0) + 1)
+    return Activity.DesktopWaitForActivity(descriptors, cast(s32)(seconds * 1000.0) + 1)
 }
 Bounds :: () -> Geometry.Rectangle {
-    return Runtime.RaylibViewport()
+    return Runtime.DesktopViewport()
 }
 Begin :: () {
-    Runtime.BeginRaylibFrame()
+    Runtime.BeginDesktopFrame()
 }
 End :: () -> bool {
-    return Runtime.EndRaylibFrame()
+    return Runtime.EndDesktopFrame()
 }
-CaptureRequested :: () -> bool { return Runtime.CaptureRequested() }
-Capture :: () -> bool { return Runtime.CaptureConfigured() }
+CaptureRequested :: () -> bool { return Raster.CaptureRequested() }
+Capture :: () -> bool { return Raster.CaptureConfigured() }
 Sample :: (session: Frames.Session, now: float64, down: []s32) -> Host.DeviceFrame {
     result: Host.DeviceFrame
     result.now = now; result.key_fresh = true
+    // The edges every poll since the last frame saw; a press released again
+    // before this frame still counts as held, so it reaches the cell under it.
     pointer := Runtime.PollPointer()
+    pointer.pressed = pending_left.pressed; pointer.released = pending_left.released
+    if pointer.pressed { pointer.down = true }
+    secondary := Runtime.PollSecondaryPointer()
+    secondary.pressed = pending_right.pressed; secondary.released = pending_right.released
+    if secondary.pressed { secondary.down = true }
     middle := Runtime.PollMiddlePointer()
+    middle.pressed = pending_middle.pressed; middle.released = pending_middle.released
+    if middle.pressed { middle.down = true }
+    if pending_press { pointer.x = pending_press_x; pointer.y = pending_press_y }
+    wheel := pending_wheel
+    pending_left = .{}; pending_right = .{}; pending_middle = .{}; pending_wheel = 0.0
+    pending_press = false
     result.middle = .{middle.down, middle.pressed, middle.released}
     Device.TreePointerUpdate(session, pointer)
-    Device.TreeSecondaryPointerUpdate(session, Runtime.PollSecondaryPointer())
-    result.focused = Runtime.RaylibFocused()
-    Device.PointerWheelSend(session, pointer.x, pointer.y, Runtime.RaylibWheelMove())
+    Device.TreeSecondaryPointerUpdate(session, secondary)
+    result.focused = Runtime.WindowFocusedHost()
+    Device.PointerWheelSend(session, pointer.x, pointer.y, wheel)
     // Kryon preserves key/text arrival order and attaches the modifiers held
     // for the key when it was observed.
-    key, modifiers := Runtime.RaylibInputTake(session)
+    key, modifiers := Runtime.DesktopInputTake(session)
     modifiers |= SDLModifiers(ModState())
     if pointer.pressed || pointer.down || pointer.released {
         modifiers |= PointerModifiers()
@@ -261,9 +291,12 @@ Sample :: (session: Frames.Session, now: float64, down: []s32) -> Host.DeviceFra
     Device.KeyboardModifiersSend(session, modifiers)
     if key != 0 { Device.KeyboardSend(session, key) }
     count: s32
+    // Desktop keys are already the active layout's codes. A key released
+    // during this poll is up, so a tapped shortcut key is never held into
+    // the next frame.
     for held: 1..511 {
-        if Runtime.RaylibKeyDown(cast(s32)held) && count < down.count {
-            down[count] = Runtime.RaylibLayoutKey(cast(s32)held); count += 1
+        if Keys.DesktopKeyDown(cast(s32)held) && !Keys.DesktopKeyReleased(cast(s32)held) && count < down.count {
+            down[count] = cast(s32)held; count += 1
         }
     }
     result.down = down[0:count]
@@ -274,6 +307,6 @@ Apply :: (result: Input.Result, app: *AppState.State) {
         if result.cursor_hidden { HideCursor() } else { ShowCursor() }
     }
     if app != null && app.fullscreen_toggle_requested {
-        Fullscreen(); app.fullscreen_toggle_requested = false
+        unused WindowState.DesktopToggleFullscreen(); app.fullscreen_toggle_requested = false
     }
 }

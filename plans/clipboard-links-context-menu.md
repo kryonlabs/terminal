@@ -82,7 +82,7 @@ working tree, one commit per repo.
 
 ## Implementation progress
 
-- Kryon's public PRIMARY API and SDL desktop/raylib host support are implemented,
+- Kryon's public PRIMARY API and SDL desktop host support are implemented,
   with unavailable stubs for hosts that do not have a distinct PRIMARY selection.
 - Per the owner's filename correction, the shared clipboard fixture and focused
   test are now `system_clipboard_host.zi` and `system_clipboard_test.zi`; the

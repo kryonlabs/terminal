@@ -74,7 +74,7 @@ benchmarks, not a substitute for broader real-desktop validation.
 
 ### 7. Kryon Renderer Direction
 
-Kryon's current raylib/SDL backend is good enough for the measured parity set.
+Kryon's SDL/Cairo desktop host is good enough for the measured parity set.
 The next major performance step should be a Kryon terminal-grid primitive, not
 a Terminal-only renderer and not a move away from Kryon.
 
@@ -83,7 +83,7 @@ The renderer should use:
 - Persistent glyph atlas and cached glyph metrics.
 - Retained row/cell state with dirty-region damage.
 - Batched quads for glyphs, backgrounds, underlines, cursor, and selections.
-- A backend-neutral Kryon API first, with the current raylib/SDL backend as the
+- A backend-neutral Kryon API first, with the SDL/Cairo desktop host as the
   first implementation.
 - A future `wgpu-native`/WebGPU backend only after the abstraction is proven.
 
