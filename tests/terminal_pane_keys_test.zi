@@ -137,6 +137,31 @@ SessionChecks :: () -> bool {
     return ok
 }
 
+// Kryon's desktop input take hands over Enter together with the text typed
+// before it. Two lines typed within one frame each must reach the shell as
+// their own line, text before Enter.
+TypedLineChecks :: () -> bool {
+    session := Sessions.SessionOpen()
+    if !Sessions.SessionValid(session) { return false }
+    Input.KeyboardModifiersSend(session, 0)
+    mode: TerminalPaneKeyMode
+    state: TerminalPaneInputState
+    input := MakeTerminalPaneInput(mode, Writer, null, *state)
+    key: [1]s32
+    text: [32]u32
+    ResetWrites()
+    lines: [2]string = .["ls", "pwd"]
+    ok := true
+    for line: 0..1 {
+        for at: 0..cast(s32)lines[line].count - 1 { Input.TypedCodepointSend(session, cast(s32)lines[line][at]) }
+        Input.KeyboardSend(session, Input.KeyEnter)
+        frame := Keyboard.CaptureKeyboardFrame(session, key[:], text[:])
+        ok = ok && PumpTerminalPaneKeyboardInput(input, frame) == 1
+    }
+    Sessions.SessionClose(session)
+    return ok && SameBytes(*received[0], received_length, "ls\rpwd\r")
+}
+
 #program_export
 main :: () -> s32 {
     mode: TerminalPaneKeyMode
@@ -194,6 +219,7 @@ main :: () -> s32 {
     }
     if !InputChecks() { print("input routing failed\n"); return 11 }
     if !SessionChecks() { print("Kryon session input failed\n"); return 12 }
+    if !TypedLineChecks() { print("text typed before Enter reached the shell after it\n"); return 13 }
     print("Terminal keyboard protocol, bounds, callbacks and Kryon input passed (% capacity checks)\n", checks)
     return 0
 }

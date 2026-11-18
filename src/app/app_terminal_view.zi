@@ -350,7 +350,9 @@ Draw :: (frame: Frames.Session, app: *State.State, bounds: Rectangle,
         props.bounds = Rectangle.{viewport.x + 10.0, viewport.y + 10.0,
             viewport.width - 20.0, 24.0 * app.scale}
         props.size = app.config.font_size; props.wrap = Label.Wrap.TextWrapNone
-        Label.Draw(frame, props)
+        // Text's Draw is generic over the frame; this frame is already a
+        // session, so take the session form directly.
+        Label.DrawSession(frame, props)
     } else {
         terminal := *active.terminal
         Profile.SeedMissing(*app.config, *app.palette, terminal)

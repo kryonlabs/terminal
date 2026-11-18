@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Send text typed before Enter to the shell ahead of the Enter that commits
+  it, as Kryon's desktop input hands them over together: lines typed faster
+  than a frame no longer merge.
+- Pin Kryon 0.6.0 with Ziran 0.7.0.
 - Run on Kryon's desktop host instead of raylib: the window, PTY-aware
   activity waits, frame pacing, fullscreen, monitor placement, dropped files
   and typefaces come from `desktop_runtime`, `desktop_window_state`,

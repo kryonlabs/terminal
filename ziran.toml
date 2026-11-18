@@ -5,11 +5,11 @@ module_roots = ["src", "src/app", "src/terminal_pane", "tests", "benchmarks"]
 
 [toolchain]
 git = "https://github.com/ziranlang/ziran.git"
-ref = "7fbc8152b0ab18b641a73d16d93ccda1e1c7f863"
+ref = "55b0176800d42c829db098a2ef8b0705ea339509"
 
 [dependencies.kryon]
 git = "https://github.com/kryonlabs/kryon.git"
-ref = "b5a61b37df7f08e2bdfc4e5d859fab607b29dbc3"
+ref = "8d5d2e752a219674f993473c8410847ba42fad48"
 
 [exports]
 app_host = "src/app/app_host.zi"

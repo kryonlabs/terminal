@@ -416,6 +416,11 @@ PumpTerminalPaneKeyboardInputFiltered :: (input: TerminalPaneInput,
             blocked[key] = true; wrote = 1
         } else { queued[key] = true }
     }
+    // Kryon hands over Enter together with the text typed before it, which
+    // Enter commits, so that text reaches the shell first and rapidly typed
+    // lines stay apart. Any other key comes before the frame's text.
+    text_first := queued[257] && frame.codepoints.count > 0
+    if text_first && WriteFrameCodepoints(input, frame, blocked[:]) { wrote = 1 }
     if queued[257] || (input.mode.application_keypad == 0 && queued[335]) {
         if InputKey(input, TERMINAL_PANE_KEY_ENTER, frame.mods) != 0 { wrote = 1 }
     }
@@ -466,14 +471,22 @@ PumpTerminalPaneKeyboardInputFiltered :: (input: TerminalPaneInput,
     } else if input.state != null {
         for key: 0..511 { input.state.last_control_keys[key] = 0 }
     }
-    for index: 0..cast(s32)frame.codepoints.count - 1 {
-        if CodepointFiltered(blocked[:], frame.codepoints[index]) { continue }
-        if InputCodepoint(input, frame.codepoints[index], frame.mods) != 0 { wrote = 1 }
-    }
+    if !text_first && WriteFrameCodepoints(input, frame, blocked[:]) { wrote = 1 }
     return wrote
 }
 
 #scope_file
+// Writes the frame's typed text, leaving out what a consumed shortcut typed.
+WriteFrameCodepoints :: (input: TerminalPaneInput, frame: KeyboardFrame,
+    blocked: []bool) -> bool {
+    wrote: bool
+    for index: 0..cast(s32)frame.codepoints.count - 1 {
+        if CodepointFiltered(blocked, frame.codepoints[index]) { continue }
+        if InputCodepoint(input, frame.codepoints[index], frame.mods) != 0 { wrote = true }
+    }
+    return wrote
+}
+
 KeepTerminalKey :: (userdata: *void, key: s32, mods: s32) -> s32 {
     unused userdata
     unused key
